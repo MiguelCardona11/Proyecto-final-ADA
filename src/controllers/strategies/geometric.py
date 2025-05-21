@@ -22,18 +22,17 @@ class GeometricSIA(SIA):
         self.mostrar_tabla_costos(tabla, tuple(self.sia_subsistema.estado_inicial))
         
         # *** TEST VER BIPARTICIONES CANDIDATAS ***
-        biparticiones = self.identificar_biparticiones_candidatas_2(tabla)
+        biparticiones = self.identificar_biparticiones_candidatas(tabla)
         for i, bip in enumerate(biparticiones):
             print(f"Bipartición {i+1}: {bip}")
         
         # *** TEST VER PARTICIONES FORMADAS ***
-        # candidatos = self.identificar_biparticiones_candidatas_2(tabla)
+        # candidatos = self.identificar_biparticiones_candidatas(tabla)
         # for i, (alcance, mecanismo) in enumerate(candidatos, 1):
         #     print(f"Candidato {i}:")
         #     print("  arr_alcance :", alcance)
         #     print("  arr_mecanismo:", mecanismo)
         #     print()
-        
         
         # **** PRUEBA CALCULAR COSTO DE TRANSICIÓN ****
         # origen = (0, 0, 0)
@@ -127,8 +126,8 @@ class GeometricSIA(SIA):
         # Inicializar matriz vacía
         tabla_costos = np.full((n_ncubos, total_estados), np.nan, dtype=np.float32)
 
-        # Precomputar todos los estados posibles
-        todos_estados = list(product([0, 1], repeat=n))
+        # Precomputar todos los estados posibles en notacion little endian (invertir bits)
+        todos_estados = [tuple(reversed(bits)) for bits in product([0, 1], repeat=n)]
 
         for i, ncubo in enumerate(subsistema.ncubos):
             for destino in todos_estados[1:-1]:  # Excluye el primero y el último
@@ -139,65 +138,14 @@ class GeometricSIA(SIA):
     
     def mostrar_tabla_costos(self, tabla: np.ndarray, estado_inicial: Tuple[int, ...]):
         n = len(estado_inicial)
-        estados_bin = [format(i, f'0{n}b') for i in range(2**n)]
+        estados_bin = [format(i, f'0{n}b')[::-1] for i in range(2**n)]  # Reverso para Little Endian
         variables = [f'Variable {i}' for i in range(tabla.shape[0])]
 
         df = pd.DataFrame(tabla.T, index=estados_bin, columns=variables)
         print(f"Costos desde el estado inicial {estado_inicial}:\n")
         print(df)
 
-    def identificar_biparticiones_candidatas(self, tabla: np.ndarray) -> List[Tuple[str, ...]]:
-        n_variables = tabla.shape[0] # cantdad de filas
-        n_estados = tabla.shape[1] # cantidad d
-        n_bits = int(np.log2(n_estados))
-        ganadores = []
-
-        for estado in range(n_estados):
-            complemento = estado ^ (n_estados - 1)
-            if not (estado >= complemento):
-                fila_1 = tabla[:, estado]
-                fila_2 = tabla[:, complemento]
-
-                if not (np.any(np.isnan(fila_1)) or np.any(np.isnan(fila_2))):
-                    indices_ganadores = np.where(fila_1 < fila_2, estado, complemento)
-                    # Convertir a binario con padding, luego invertir el orden de las variables
-                    ganador_binario = tuple(format(i, f'0{n_bits}b') for i in indices_ganadores[::-1])
-                    ganadores.append(ganador_binario)
-
-        for ganador in ganadores:
-            print(ganador)
-            biparticion = self.biparticion_indices_sin_repetidos(ganador)
-            print("Bipartición:", biparticion)
-                    
-        
-        
-        return ganadores
-    
-    def biparticion_indices_sin_repetidos(self, tupla_binaria):
-        bits_por_posicion = list(zip(*tupla_binaria))
-        biparticiones = []
-
-        for bits_columna in bits_por_posicion:
-            grupo_unos = tuple(i for i, bit in enumerate(bits_columna) if bit == '1')
-            grupo_ceros = tuple(i for i, bit in enumerate(bits_columna) if bit == '0')
-            biparticiones.append((grupo_unos, grupo_ceros))
-
-        # Eliminar duplicados usando set
-        biparticiones_unicas = list(dict.fromkeys(biparticiones))  # mantiene el orden
-
-        # Convertir cada bipartición a lista (opcional, si querés listas)
-        biparticiones_unicas = [ [list(a), list(b)] for a,b in biparticiones_unicas]
-
-        return biparticiones_unicas
-
-
-
-
-
-
-
-
-    def identificar_biparticiones_candidatas_2(self, tabla: np.ndarray) -> List[Tuple[np.ndarray, np.ndarray]]:
+    def identificar_biparticiones_candidatas(self, tabla: np.ndarray) -> List[Tuple[np.ndarray, np.ndarray]]:
         n_variables = tabla.shape[0]  # cantidad de filas
         n_estados = tabla.shape[1]    # cantidad de columnas
         n_bits = int(np.log2(n_estados))
@@ -222,13 +170,13 @@ class GeometricSIA(SIA):
         # for ganador in ganadores:
         #     valor_referencia = ganador[0]
         #     arr_alcance = [0]
-        #     arr_mecanismo = [i for i, bit in enumerate(valor_referencia) if bit == '1']
+        #     arr_mecanismo = [i for i, bit in enumerate(valor_referencia[::-1]) if bit == '1']
 
         #     for idx in range(1, len(ganador)):
         #         valor_actual = ganador[idx]
         #         if valor_actual == valor_referencia:
         #             arr_alcance.append(idx)
-        #             for i, bit in enumerate(valor_actual):
+        #             for i, bit in enumerate(valor_actual[::-1]):
         #                 if bit == '1' and i not in arr_mecanismo:
         #                     arr_mecanismo.append(i)
 
@@ -236,7 +184,7 @@ class GeometricSIA(SIA):
         #     arr_mecanismo_np = np.array(arr_mecanismo, dtype=np.int8)
         #     candidatos.append((arr_alcance_np, arr_mecanismo_np))
 
-        return candidatos
+        # return candidatos
 
 
 
