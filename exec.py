@@ -9,11 +9,12 @@ def main():
     """Inicializar el aplicativo."""
     profiler_manager.enabled = True
 
-    aplicacion.pagina_sample_network = "A"
+    aplicacion.pagina_sample_network = "C"
     
     iniciar_geometric_individual()
+    # iniciar_force_individual()
 
-    #iniciar_estrategia(15, 2, "15A_Qnodos.xlsx")
+    # iniciar_estrategia(15, 2, "15A_Qnodos.xlsx")
     # iniciar_qnodes_individual()
 
     # Generar la red con 25 elementoss

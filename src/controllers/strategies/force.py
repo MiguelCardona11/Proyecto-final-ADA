@@ -98,8 +98,11 @@ class BruteForce(SIA):
 
         for subalcance, submecanismo in biparticiones(futuros, presentes, (1 << m) * (1 << n)):
             subsistema = self.sia_subsistema
+            
             arr_alcance = np.array(subalcance, dtype=np.int8)
             arr_mecanismo = np.array(submecanismo, dtype=np.int8)
+            
+            print(f"alcance: {arr_alcance}, mecanismo: {arr_mecanismo}")
 
             particion = subsistema.bipartir(arr_alcance, arr_mecanismo)
 

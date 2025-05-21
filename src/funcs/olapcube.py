@@ -18,6 +18,15 @@ class OLAPCube:
         """Obtiene la probabilidad condicional almacenada en un índice binario específico."""
         return self.data[index]
 
+
+
+
+
+
+
+
+
+
     def hamming(index: Tuple[int, ...], index2: Tuple[int, ...]) -> float:
         if len(index) != len(index2):
             raise ValueError("Las tuplas deben tener la misma longitud.")

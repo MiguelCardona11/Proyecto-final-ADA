@@ -256,6 +256,22 @@ def iniciar_qnodes_individual():
     print(f"  - Tiempo: {fin - inicio:.6f} s")
     print(f"  - Partición óptima: \n{resultado.particion}")
     
+def iniciar_force_individual():
+    """Ejecución individual de la estrategia Bruteforce."""
+    estado_inicio =       "000"
+    condiciones   =       "111"
+    alcance       =       "111"
+    mecanismo     =       "111"
+
+    config_sistema = Manager(estado_inicial=estado_inicio)
+    analizador_fi = BruteForce(config_sistema)
+    inicio = time.time()
+    resultado = analizador_fi.aplicar_estrategia(condiciones, alcance, mecanismo)
+    fin = time.time()
+    print(f"  - Pérdida: {resultado.perdida}")
+    print(f"  - Tiempo: {fin - inicio:.6f} s")
+    print(f"  - Partición óptima: \n{resultado.particion}")
+    
 def iniciar_geometric_individual():
     """Ejecución individual de la estrategia Geometric."""
     estado_inicio =       "000"
@@ -271,3 +287,4 @@ def iniciar_geometric_individual():
     # print(f"  - Pérdida: {resultado.perdida}")
     # print(f"  - Tiempo: {fin - inicio:.6f} s")
     # print(f"  - Partición óptima: \n{resultado.particion}")
+    
