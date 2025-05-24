@@ -102,7 +102,7 @@ class BruteForce(SIA):
             arr_alcance = np.array(subalcance, dtype=np.int8)
             arr_mecanismo = np.array(submecanismo, dtype=np.int8)
             
-            print(f"alcance: {arr_alcance}, mecanismo: {arr_mecanismo}")
+            print(f"alcance arreglo: {arr_alcance}, mecanismo arreglo: {arr_mecanismo}\n alcance otro: {subalcance}, mecanismo otro: {submecanismo}")
 
             particion = subsistema.bipartir(arr_alcance, arr_mecanismo)
 

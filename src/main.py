@@ -226,10 +226,10 @@ def iniciar_estrategia(cantidad_nodos: int, estrategia: int, nombre_archivo):
 
 def iniciar_phi_individual():
     """Ejecución individual de la estrategia Pyphi."""
-    estado_inicio =       "100000000000000"
-    condiciones   =       "111111111111111"
-    alcance       =       "111111111111111"
-    mecanismo     =       "111111111111111"
+    estado_inicio =       "0000000000"
+    condiciones   =       "1111111111"
+    alcance       =       "1111111111"
+    mecanismo     =       "1111111111"
 
     config_sistema = Manager(estado_inicial=estado_inicio)
     analizador_fi = Phi(config_sistema)
@@ -240,31 +240,32 @@ def iniciar_phi_individual():
     print(f"  - Tiempo: {fin - inicio:.6f} s")
     print(f"  - Partición óptima: \n{resultado.particion}")
     
-def iniciar_qnodes_individual():
-    """Ejecución individual de la estrategia QNodes."""
-    estado_inicio =       "100000000000000"
-    condiciones   =       "111111111111111"
-    alcance       =       "111111111111111"
-    mecanismo     =       "111111111111111"
+def iniciar_force_individual():
+    """Ejecución individual de la estrategia Bruteforce."""
+    estado_inicio =       "00000"
+    condiciones   =       "11111"
+    alcance       =       "11111"
+    mecanismo     =       "11111"
 
     config_sistema = Manager(estado_inicial=estado_inicio)
-    analizador_fi = QNodes(config_sistema)
+    analizador_fi = BruteForce(config_sistema)
     inicio = time.time()
     resultado = analizador_fi.aplicar_estrategia(condiciones, alcance, mecanismo)
     fin = time.time()
     print(f"  - Pérdida: {resultado.perdida}")
     print(f"  - Tiempo: {fin - inicio:.6f} s")
     print(f"  - Partición óptima: \n{resultado.particion}")
-    
-def iniciar_force_individual():
-    """Ejecución individual de la estrategia Bruteforce."""
+
+
+def iniciar_qnodes_individual():
+    """Ejecución individual de la estrategia QNodes."""
     estado_inicio =       "000"
     condiciones   =       "111"
     alcance       =       "111"
     mecanismo     =       "111"
 
     config_sistema = Manager(estado_inicial=estado_inicio)
-    analizador_fi = BruteForce(config_sistema)
+    analizador_fi = QNodes(config_sistema)
     inicio = time.time()
     resultado = analizador_fi.aplicar_estrategia(condiciones, alcance, mecanismo)
     fin = time.time()
@@ -281,10 +282,5 @@ def iniciar_geometric_individual():
 
     config_sistema = Manager(estado_inicial=estado_inicio)
     analizador_fi = GeometricSIA(config_sistema)
-    inicio = time.time()
     resultado = analizador_fi.aplicar_estrategia(condiciones, alcance, mecanismo)
-    fin = time.time()
-    # print(f"  - Pérdida: {resultado.perdida}")
-    # print(f"  - Tiempo: {fin - inicio:.6f} s")
-    # print(f"  - Partición óptima: \n{resultado.particion}")
-    
+    print(resultado)
