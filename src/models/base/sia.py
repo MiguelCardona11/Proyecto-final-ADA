@@ -40,6 +40,7 @@ class SIA(ABC):
         self.sia_dists_marginales: NDArray[np.float32]
         self.sia_tiempo_inicio: float = FLOAT_ZERO
         self.sia_mecanismo_str = str
+        self.sia_alcance_str = str
 
 
     @abstractmethod
@@ -108,6 +109,7 @@ class SIA(ABC):
         self.sia_dists_marginales = subsistema.distribucion_marginal()
         self.sia_tiempo_inicio = time.time()
         self.sia_mecanismo_str = mecanismo
+        self.sia_alcance_str = alcance
 
     def chequear_parametros(self, candidato: str, futuro: str, presente: str):
         """Valida que los datos enviados por el usuario sean correctos, donde no hay problema si tienen la misma longitud puesto se están asignando los valores correspondientes a cada variable.

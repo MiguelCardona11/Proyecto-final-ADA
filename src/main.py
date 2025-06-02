@@ -242,10 +242,10 @@ def iniciar_phi_individual():
     
 def iniciar_force_individual():
     """Ejecución individual de la estrategia Bruteforce."""
-    estado_inicio =       "00000"
+    estado_inicio =       "10110"
     condiciones   =       "11111"
-    alcance       =       "11111"
-    mecanismo     =       "11111"
+    alcance       =       "10011"
+    mecanismo     =       "10111"
 
     config_sistema = Manager(estado_inicial=estado_inicio)
     analizador_fi = BruteForce(config_sistema)
@@ -259,10 +259,10 @@ def iniciar_force_individual():
 
 def iniciar_qnodes_individual():
     """Ejecución individual de la estrategia QNodes."""
-    estado_inicio =       "000"
-    condiciones   =       "111"
-    alcance       =       "111"
-    mecanismo     =       "111"
+    estado_inicio =       "10100"
+    condiciones   =       "11111"
+    alcance       =       "01101"
+    mecanismo     =       "10110"
 
     config_sistema = Manager(estado_inicial=estado_inicio)
     analizador_fi = QNodes(config_sistema)
@@ -275,10 +275,11 @@ def iniciar_qnodes_individual():
     
 def iniciar_geometric_individual():
     """Ejecución individual de la estrategia Geometric."""
-    estado_inicio =       "000"
-    condiciones   =       "111"
-    alcance       =       "111"
-    mecanismo     =       "111"
+    estado_inicio =       "10100"
+    condiciones   =       "11111"
+    alcance       =       "01101"
+    mecanismo     =       "10110"
+    
 
     config_sistema = Manager(estado_inicial=estado_inicio)
     analizador_fi = GeometricSIA(config_sistema)
