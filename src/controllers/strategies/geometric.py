@@ -16,6 +16,12 @@ from src.constants.base import (
     EFECTO,
     ACTUAL,
 )
+from src.constants.models import (
+    BRUTEFORCE_LABEL,
+    DUMMY_ARR,
+    DUMMY_EMD,
+    ERROR_PARTITION,
+)
 
 DECIMALES_COSTO = 4
 
@@ -31,23 +37,20 @@ class GeometricSIA(SIA):
         self.mostrar_tabla_costos(tabla, tuple(self.sia_subsistema.estado_inicial))
         # print(tabla)
         
-        candidatos = self.identificar_biparticiones_candidatas(tabla)
-        for i, ((alcance_prim, mecanismo_prim), (alcance_dual, mecanismo_dual)) in enumerate(candidatos, 1):
-            print(f"\nCandidato {i}:")
-            print("  ↪ Bipartición primaria:")
-            print("     arr_alcance  :", alcance_prim)
-            print("     arr_mecanismo:", mecanismo_prim)
+        # candidatos = self.identificar_biparticiones_candidatas(tabla)
+        # for i, ((alcance_prim, mecanismo_prim), (alcance_dual, mecanismo_dual)) in enumerate(candidatos, 1):
+        #     print(f"\nCandidato {i}:")
+        #     print("  ↪ Bipartición primaria:")
+        #     print("     arr_alcance  :", alcance_prim)
+        #     print("     arr_mecanismo:", mecanismo_prim)
             
-            print("  ↪ Bipartición dual:")
-            print("     arr_alcance  :", alcance_dual)
-            print("     arr_mecanismo:", mecanismo_dual)
+        #     print("  ↪ Bipartición dual:")
+        #     print("     arr_alcance  :", alcance_dual)
+        #     print("     arr_mecanismo:", mecanismo_dual)
 
         
-        return self.evaluar_candidatos(candidatos)
+        return self.identificar_biparticiones_candidatas(tabla)
         
-
-        
-    
         
         # *** TEST VER BIPARTICIONES CANDIDATAS ***
         # biparticiones = self.identificar_biparticiones_candidatas(tabla)
@@ -191,113 +194,94 @@ class GeometricSIA(SIA):
         print(df)
 
     def identificar_biparticiones_candidatas(self, tabla: np.ndarray) -> List[Tuple[np.ndarray, np.ndarray]]:
-        n_estados = tabla.shape[1]
+
+        n_estados = tabla.shape[1] # cantidad de columnas, en este caso son los estados del presente
         n_bits = int(np.log2(n_estados))
         
         # en estado_inicial_bin solo se tienen en cuenta los bits en 1 del mecanismo del subsistema
         mascara_mecanismo = np.array([bit == "1" for bit in self.sia_mecanismo_str], dtype=bool)
         estado_filtrado = self.sia_subsistema.estado_inicial[mascara_mecanismo]
         estado_inicial_bin = ''.join(str(b) for b in estado_filtrado)
-
-
-        ganadores = []
-
-        # Parte 1: identificar los ganadores como strings binarios en little-endian
-        for estado in range(n_estados):
-            complemento = estado ^ (n_estados - 1)
-            if estado < complemento:
-                fila_1 = tabla[:, estado]
-                fila_2 = tabla[:, complemento]
-
-                if not (np.any(np.isnan(fila_1)) or np.any(np.isnan(fila_2))):
-                    indices_ganadores = np.where(fila_1 < fila_2, estado, complemento)
-                    if not np.all(indices_ganadores == self.binario_a_entero(self.sia_subsistema.estado_inicial)):
-                        ganador_binario = tuple(format(i, f'0{n_bits}b')[::-1] for i in indices_ganadores)
-                        ganadores.append(ganador_binario)
-                        
-        # return ganadores
-        for i, bip in enumerate(ganadores, 1):
-            print(f"Biparticion {i}: {bip}")
-
-        # Parte 2: construir candidatos con lógica de comparación bit a bit con estado inicial
         
         mecanismo_str = self.sia_mecanismo_str
         alcance_str = self.sia_alcance_str
+        # índices en donde mecanismo y alcance tienen bits iguales a 1 (variables a considerar del subsistema)
         indices_mecanismo = [i for i, bit in enumerate(mecanismo_str) if bit == "1"]
         indices_alcance = [i for i, bit in enumerate(alcance_str) if bit == "1"]
-
-        candidatos: List[Tuple[Tuple[np.ndarray, np.ndarray], Tuple[np.ndarray, np.ndarray]]] = []
-
-        for ganador in ganadores:
-            referencia = ganador[0]
-            arr_alcance_prim = []
-            arr_mecanismo_prim = []
-            arr_alcance_dual = []
-            arr_mecanismo_dual = []
-
-            for idx, actual in enumerate(ganador):
-                if actual == referencia:
-                    arr_alcance_prim.append(indices_alcance[idx])
-                    for i in range(n_bits):
-                        if estado_inicial_bin[i] == actual[i]:
-                            idx_real = indices_mecanismo[i]
-                            if idx_real not in arr_mecanismo_prim:
-                                arr_mecanismo_prim.append(idx_real)
-                else:
-                    arr_alcance_dual.append(indices_alcance[idx])
-                    for i in range(n_bits):
-                        if estado_inicial_bin[i] == actual[i]:
-                            idx_real = indices_mecanismo[i]
-                            if idx_real not in arr_mecanismo_dual:
-                                arr_mecanismo_dual.append(idx_real)
-
-            # Verificar que todas las variables del mecanismo estén asignadas
-            todas_mecanismo = set(indices_mecanismo)
-            mecanismo_asignado = set(arr_mecanismo_prim) | set(arr_mecanismo_dual)
-            no_asignadas_mecanismo = todas_mecanismo - mecanismo_asignado
-
-            # Por defecto, asignar variables no asignadas al mecanismo de la partición dual
-            arr_mecanismo_dual.extend(sorted(no_asignadas_mecanismo))
-            
-            candidatos.append((
-                (np.array(arr_alcance_prim, dtype=np.int8), np.array(arr_mecanismo_prim, dtype=np.int8)),
-                (np.array(arr_alcance_dual, dtype=np.int8), np.array(arr_mecanismo_dual, dtype=np.int8))
-            ))
-
-
-        return candidatos
-    
-    def evaluar_candidatos(self, candidatos: List[Tuple[Tuple[np.ndarray, np.ndarray], Tuple[np.ndarray, np.ndarray]]]) -> Solution:
-        subsistema = self.sia_subsistema
-        distribucion_original = self.sia_dists_marginales
         
+        # inicializacion de variables de solución
+        emd_value = 1.0
         mejor_emd = float('inf')
+        mejor_dist_marg = DUMMY_ARR
+        biparticion_formateada = None
         
-        for (arr_alcance_prim, arr_mecanismo_prim), (arr_alcance_dual, arr_mecanismo_dual) in candidatos:
-            particion = subsistema.bipartir(arr_alcance_prim, arr_mecanismo_prim)
-            part_marg_dist = particion.distribucion_marginal()
-            emd_value = self.distancia_metrica(part_marg_dist, distribucion_original)
-            print(f"Evaluando bipartición: {arr_alcance_prim}, {arr_mecanismo_prim} | {arr_alcance_dual}, {arr_mecanismo_dual} -> EMD: {emd_value:.4f}")
+        # identificar los ganadores como strings binarios en little-endian
+        estado = 0
+        while (emd_value != 0.0 and (estado <= int(n_estados/2))): 
+            complemento = estado ^ (n_estados - 1)
+            fila_1 = tabla[:, estado]
+            fila_2 = tabla[:, complemento]
+            indices_ganadores = np.where(fila_1 < fila_2, estado, complemento)
+            # evitar la bipartición donde todos los indices son iguales al estado inicial
+            if not np.all(indices_ganadores == self.binario_a_entero(self.sia_subsistema.estado_inicial)):
+                ganador = tuple(format(i, f'0{n_bits}b')[::-1] for i in indices_ganadores)
+                
+                # construir candidato a a partir de los strings binarios
+                referencia = ganador[0]
+                arr_alcance_prim = []
+                arr_mecanismo_prim = []
+                
+                arr_alcance_dual = []
+                arr_mecanismo_dual = []
+                
+                # construccion de la biparticion prim
+                for idx, actual in enumerate(ganador):
+                    if actual == referencia:
+                        arr_alcance_prim.append(indices_alcance[idx])
+                        for i in range(n_bits):
+                            if estado_inicial_bin[i] == actual[i]:
+                                idx_real = indices_mecanismo[i]
+                                if idx_real not in arr_mecanismo_prim:
+                                    arr_mecanismo_prim.append(idx_real)
+                
+                emd_value, dist_marg = self.calcular_emd(arr_alcance_prim, arr_mecanismo_prim)
+                
+                if emd_value < mejor_emd:
+                    mejor_emd = emd_value
+                    mejor_dist_marg = dist_marg
+                    
+                    # construir segunda biparticion a partir del complemento de la primera (solo si el emd_value de la particion prim es óptimo)
+                    todas_alcance = set(indices_alcance)
+                    alcance_asignado = set(arr_alcance_prim)
+                    no_asignadas_alcance = todas_alcance - alcance_asignado
             
-            if emd_value < mejor_emd:
-                mejor_emd = emd_value
-                mejor_dist_marg = part_marg_dist
-                
-                subalcance_prim = tuple(arr_alcance_prim)
-                submecanismo_prim = tuple(arr_mecanismo_prim)
-                subalcance_dual = tuple(arr_alcance_dual)
-                submecanismo_dual = tuple(arr_mecanismo_dual)
-                
-                biparticion_prim = submecanismo_prim, subalcance_prim
-                biparticion_dual = submecanismo_dual, subalcance_dual
-        
-        biparticion_formateada = fmt_biparticion(
-            [biparticion_prim[ACTUAL], biparticion_prim[EFECTO]],
-            [biparticion_dual[ACTUAL], biparticion_dual[EFECTO]],
-        )
+                    todas_mecanismo = set(indices_mecanismo)
+                    mecanismo_asignado = set(arr_mecanismo_prim)
+                    no_asignadas_mecanismo = todas_mecanismo - mecanismo_asignado
+
+                    arr_mecanismo_dual.extend(no_asignadas_mecanismo)
+                    arr_alcance_dual.extend(no_asignadas_alcance)
+                    
+                    print(f"Evaluando bipartición: {arr_alcance_prim}, {arr_mecanismo_prim} | {arr_alcance_dual}, {arr_mecanismo_dual} -> EMD: {emd_value:.4f}")
+                    
+                    # formatear biparticiones para construccion de la biparticion solucion
+                    subalcance_prim = tuple(arr_alcance_prim)
+                    submecanismo_prim = tuple(arr_mecanismo_prim)
+                    subalcance_dual = tuple(arr_alcance_dual)
+                    submecanismo_dual = tuple(arr_mecanismo_dual)
+                    
+                    biparticion_prim = submecanismo_prim, subalcance_prim
+                    biparticion_dual = submecanismo_dual, subalcance_dual
+                    
+                    biparticion_formateada = fmt_biparticion(
+                        [biparticion_prim[ACTUAL], biparticion_prim[EFECTO]],
+                        [biparticion_dual[ACTUAL], biparticion_dual[EFECTO]],
+                    )
+                    
+            estado += 1
         
         return Solution(
-            estrategia="Geométric",
+            estrategia="Geometric",
             perdida=mejor_emd,
             distribucion_subsistema=self.sia_dists_marginales,
             distribucion_particion=mejor_dist_marg,
@@ -306,24 +290,18 @@ class GeometricSIA(SIA):
             hablar=False
         )
 
-
-
-
-
-
-
+    def calcular_emd(self, arr_alcance_prim: np.ndarray, arr_mecanismo_prim: np.ndarray):
+        subsistema = self.sia_subsistema
+        distribucion_original = self.sia_dists_marginales
         
+        particion = subsistema.bipartir(arr_alcance_prim, arr_mecanismo_prim)
+        part_marg_dist = particion.distribucion_marginal()
+        emd_value = self.distancia_metrica(part_marg_dist, distribucion_original)
         
-#     def find_mip(self):
-#     """
-#     Implementa el algoritmo para encontrar la bipartición óptima
-#     utilizando el enfoque geométrico-topológico.
-#     """
-#     # 1. Construir la representación n-dimensional del sistema
-#     # 2. Calcular la tabla de costos T para cada variable
-#     # 3. Identificar las biparticiones candidatas
-#     # 4. Evaluar y seleccionar la bipartición óptima
-#     # 5. Retornar el resultado en formato compatible
+        return emd_value, part_marg_dist
+
+
+
 
 
 

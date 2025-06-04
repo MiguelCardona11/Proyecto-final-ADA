@@ -15,7 +15,7 @@ def main():
     # iniciar_force_individual()s
 
     # iniciar_estrategia(15, 2, "15A_Qnodos.xlsx")
-    iniciar_qnodes_individual()
+    # iniciar_qnodes_individual()
     # iniciar_phi_individual()
     
     # Generar la red con 25 elementoss

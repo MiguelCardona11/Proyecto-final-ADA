@@ -225,7 +225,7 @@ class Solution:
             distribucion: np.ndarray,
             evitar_desbordamiento=True,
         ):
-            rango = distribucion.size
+            rango = len(distribucion)
             mensaje_desborde = ""
             if evitar_desbordamiento:
                 LIMITE = 64
