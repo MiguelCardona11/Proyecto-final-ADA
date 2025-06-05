@@ -275,13 +275,26 @@ def iniciar_qnodes_individual():
     
 def iniciar_geometric_individual():
     """Ejecución individual de la estrategia Geometric."""
-    estado_inicio =       "1000000000"
-    condiciones   =       "1111111111"
-    alcance       =       "1111111111"
-    mecanismo     =       "1111111111"
+                          #ABCDEFGHIJKLMNO  
+    estado_inicio =       "10000000000000000000"
+    condiciones   =       "11111111111111111111"
+    alcance       =       "10101010101010101010"
+    mecanismo     =       "10101010101010101010"
     
 
     config_sistema = Manager(estado_inicial=estado_inicio)
     analizador_fi = GeometricSIA(config_sistema)
     resultado = analizador_fi.aplicar_estrategia(condiciones, alcance, mecanismo)
     print(resultado)
+
+    # prueba 15A nro 40:
+    # estado_inicio =       "100000000000000"
+    # condiciones   =       "111111111111111"
+    # alcance       =       "010101010101010"
+    # mecanismo     =       "101010101010101"
+    
+    # prueba 20A nro 33 ~70segundos:
+    # estado_inicio =       "10000000000000000000"
+    # condiciones   =       "11111111111111111111"
+    # alcance       =       "10101010101010101010"
+    # mecanismo     =       "10101010101010101010"
