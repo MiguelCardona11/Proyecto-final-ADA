@@ -9,6 +9,14 @@ import re
 import multiprocessing
 
 # Variables para utilizar con NODOS
+
+# 5 NODOS: ABCDE
+estado_inicio_5        = "10000"
+condiciones_5          = "11111"
+mecanismo_cincuenta_5  = "01111"
+alcance_cincuenta_5    = "01001"
+patrones_5             = ["11111", "11110", "01111", "01110", "10101", "01010", "11011"]
+
 # 10 NODOS: ABCDEFGHIJ
 estado_inicio_10       = "1000000000"
 condiciones_10         = "1111111111"
@@ -53,6 +61,8 @@ def worker(estado_inicio, condiciones, mecanismo, alcance, estrategia, queue):
             analizador_fi = Phi(config_sistema)
         elif estrategia == 2:
             analizador_fi = QNodes(config_sistema)
+        elif estrategia == 3:
+            analizador_fi = GeometricSIA(config_sistema)
         else:
             raise ValueError("Estrategia inválida")
         resultado = analizador_fi.aplicar_estrategia(condiciones, alcance, mecanismo)
@@ -69,7 +79,7 @@ def worker(estado_inicio, condiciones, mecanismo, alcance, estrategia, queue):
 
 def procesar_estrategia(estado_inicio, condiciones, mecanismo, alcance, prueba_num, estrategia: int):
     """
-    Ejecuta la prueba en un proceso separado. Si el proceso tarda más de 10800 segundos,
+    Ejecuta la prueba en un proceso separado. Si el proceso tarda más de 700 segundos,
     se termina y se retorna un diccionario con campos en blanco (pero conservando el número de prueba).
     """
     inicio = time.time()
@@ -79,12 +89,12 @@ def procesar_estrategia(estado_inicio, condiciones, mecanismo, alcance, prueba_n
         args=(estado_inicio, condiciones, mecanismo, alcance, estrategia, queue)
     )
     proceso.start()
-    proceso.join(timeout=10800)  # Espera hasta 10800 segundos
+    proceso.join(timeout=700)  # Espera hasta 700 segundos
 
     if proceso.is_alive():
         proceso.terminate()
         proceso.join()
-        print(f"La prueba {prueba_num} excedió el límite de tiempo de 10800 segundos y será omitida.")
+        print(f"La prueba {prueba_num} excedió el límite de tiempo de 700 segundos y será omitida.")
         return {
             "Prueba": prueba_num,
             "Mecanismo": "",
@@ -135,11 +145,17 @@ def iniciar_estrategia(cantidad_nodos: int, estrategia: int, nombre_archivo):
     """
     Ejecuta las 50 pruebas de una estrategia dada. 1 --> (Pyphi) 2 --> (QNodes)
     """
-    if estrategia not in (1, 2):
-        print("Estrategia no soportada, solo se soportan 1 (Pyphi) y 2 (QNodes).")
+    if estrategia not in (1, 2, 3):
+        print("Estrategia no soportada, solo se soportan 1 (Pyphi), 2 (QNodes) y 3 (Geometric).")
         return
 
-    if cantidad_nodos == 10:
+    if cantidad_nodos == 5:
+        estado_inicio = estado_inicio_5
+        condiciones = condiciones_5
+        mecanismo_cincuenta = mecanismo_cincuenta_5
+        alcance_cincuenta = alcance_cincuenta_5
+        patrones = patrones_5
+    elif cantidad_nodos == 10:
         estado_inicio = estado_inicio_10
         condiciones = condiciones_10
         mecanismo_cincuenta = mecanismo_cincuenta_10
@@ -192,25 +208,25 @@ def iniciar_estrategia(cantidad_nodos: int, estrategia: int, nombre_archivo):
     # Extraer datos para el Excel
     datos = []
     num = 1
-    tipo = ""
-    resultado_str = ""
+    # tipo = ""
+    # resultado_str = ""
     for obj in resultados:
-        entrada = obj['Partición óptima']
-        letra_central = re.search(r"[⎛⎝] ([a-zA-Z]) [⎞⎠]", entrada)
-        if letra_central:
-            letra_central = letra_central.group(1)
-            tipo = "mayúscula" if letra_central.isupper() else "minúscula"
-        letras_mayusculas = "".join(re.findall(r'[A-Z]', entrada))
-        letras_minusculas = "".join(re.findall(r'[a-z]', entrada))
-        if tipo == "mayúscula":
-            letras_mayusculas = letras_mayusculas[1:]
-            resultado_str = f"({letra_central}_t+1|∅)({letras_mayusculas}_t+1|{letras_minusculas}_t)"
-        if tipo == "minúscula":
-            letras_minusculas = letras_minusculas[1:]
-            resultado_str = f"(∅|{letra_central}_t)({letras_mayusculas}_t+1|{letras_minusculas}_t)"
+        # entrada = obj['Partición óptima']
+        # letra_central = re.search(r"[⎛⎝] ([a-zA-Z]) [⎞⎠]", entrada)
+        # if letra_central:
+        #     letra_central = letra_central.group(1)
+        #     tipo = "mayúscula" if letra_central.isupper() else "minúscula"
+        # letras_mayusculas = "".join(re.findall(r'[A-Z]', entrada))
+        # letras_minusculas = "".join(re.findall(r'[a-z]', entrada))
+        # if tipo == "mayúscula":
+        #     letras_mayusculas = letras_mayusculas[1:]
+        #     resultado_str = f"({letra_central}_t+1|∅)({letras_mayusculas}_t+1|{letras_minusculas}_t)"
+        # if tipo == "minúscula":
+        #     letras_minusculas = letras_minusculas[1:]
+        #     resultado_str = f"(∅|{letra_central}_t)({letras_mayusculas}_t+1|{letras_minusculas}_t)"
         datos.append({
             "Prueba": num,
-            "Particion": resultado_str,
+            "Particion": obj['Partición óptima'],
             "Perdida": obj['Pérdida'],
             "Tiempo": obj['Tiempo'],
             "Estrategia": obj['Estrategia']
@@ -226,10 +242,10 @@ def iniciar_estrategia(cantidad_nodos: int, estrategia: int, nombre_archivo):
 
 def iniciar_phi_individual():
     """Ejecución individual de la estrategia Pyphi."""
-    estado_inicio =       "0000000000"
-    condiciones   =       "1111111111"
-    alcance       =       "1111111111"
-    mecanismo     =       "1111111111"
+    estado_inicio =       "000"
+    condiciones   =       "111"
+    alcance       =       "111"
+    mecanismo     =       "111"
 
     config_sistema = Manager(estado_inicial=estado_inicio)
     analizador_fi = Phi(config_sistema)
@@ -242,10 +258,10 @@ def iniciar_phi_individual():
     
 def iniciar_force_individual():
     """Ejecución individual de la estrategia Bruteforce."""
-    estado_inicio =       "10110"
-    condiciones   =       "11111"
-    alcance       =       "10011"
-    mecanismo     =       "10111"
+    estado_inicio =       "1000"
+    condiciones   =       "1111"
+    alcance       =       "1111"
+    mecanismo     =       "1111"
 
     config_sistema = Manager(estado_inicial=estado_inicio)
     analizador_fi = BruteForce(config_sistema)
@@ -259,10 +275,10 @@ def iniciar_force_individual():
 
 def iniciar_qnodes_individual():
     """Ejecución individual de la estrategia QNodes."""
-    estado_inicio =       "10100"
-    condiciones   =       "11111"
-    alcance       =       "01101"
-    mecanismo     =       "10110"
+    estado_inicio =       "000"
+    condiciones   =       "111"
+    alcance       =       "111"
+    mecanismo     =       "111"
 
     config_sistema = Manager(estado_inicial=estado_inicio)
     analizador_fi = QNodes(config_sistema)
@@ -276,16 +292,25 @@ def iniciar_qnodes_individual():
 def iniciar_geometric_individual():
     """Ejecución individual de la estrategia Geometric."""
                           #ABCDEFGHIJKLMNO  
-    estado_inicio =       "10000000000000000000"
-    condiciones   =       "11111111111111111111"
-    alcance       =       "10101010101010101010"
-    mecanismo     =       "10101010101010101010"
+    # estado_inicio =       "1000000000"
+    # condiciones   =       "1111111111"
+    # alcance       =       "1111111111"
+    # mecanismo     =       "1111111111"
+    estado_inicio =       "000"
+    condiciones   =       "111"
+    alcance       =       "111"
+    mecanismo     =       "111"
     
 
     config_sistema = Manager(estado_inicial=estado_inicio)
     analizador_fi = GeometricSIA(config_sistema)
     resultado = analizador_fi.aplicar_estrategia(condiciones, alcance, mecanismo)
     print(resultado)
+
+    # estado_inicio =       "10100"
+    # condiciones   =       "11111"
+    # alcance       =       "01101"
+    # mecanismo     =       "10110"
 
     # prueba 15A nro 40:
     # estado_inicio =       "100000000000000"
@@ -298,3 +323,11 @@ def iniciar_geometric_individual():
     # condiciones   =       "11111111111111111111"
     # alcance       =       "10101010101010101010"
     # mecanismo     =       "10101010101010101010"
+    
+    
+    
+    #caso trivial
+    # estado_inicio =       "10000000000000000000"
+    # condiciones   =       "11111111111111111111"
+    # alcance       =       "01010101010101010101"
+    # mecanismo     =       "01010101010101010101"

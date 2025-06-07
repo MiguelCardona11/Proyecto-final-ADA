@@ -14,7 +14,7 @@ def main():
     iniciar_geometric_individual()
     # iniciar_force_individual()s
 
-    # iniciar_estrategia(15, 2, "15A_Qnodos.xlsx")
+    # iniciar_estrategia(10, 3, "10A_Geometric.xlsx")
     # iniciar_qnodes_individual()
     # iniciar_phi_individual()
     

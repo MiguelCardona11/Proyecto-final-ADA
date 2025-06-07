@@ -21,8 +21,8 @@ def fmt_biparticion(
     width_dual = max(len(purv_dual), len(mech_dual)) + 2
 
     return (
-        f"⎛{purv_prim:^{width_prim}}⎞⎛{purv_dual:^{width_dual}}⎞\n"
-        f"⎝{mech_prim:^{width_prim}}⎠⎝{mech_dual:^{width_dual}}⎠\n"
+        f"|{purv_prim:^{width_prim}}||{purv_dual:^{width_dual}}|\n"
+        f"|{mech_prim:^{width_prim}}||{mech_dual:^{width_dual}}|\n"
     )
 
 
