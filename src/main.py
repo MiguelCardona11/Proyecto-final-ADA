@@ -292,14 +292,10 @@ def iniciar_qnodes_individual():
 def iniciar_geometric_individual():
     """Ejecución individual de la estrategia Geometric."""
                           #ABCDEFGHIJKLMNO  
-    # estado_inicio =       "1000000000"
-    # condiciones   =       "1111111111"
-    # alcance       =       "1111111111"
-    # mecanismo     =       "1111111111"
-    estado_inicio =       "000"
-    condiciones   =       "111"
-    alcance       =       "111"
-    mecanismo     =       "111"
+    estado_inicio =       "10000"
+    condiciones   =       "11111"
+    alcance       =       "01111"
+    mecanismo     =       "11110"
     
 
     config_sistema = Manager(estado_inicial=estado_inicio)
@@ -326,8 +322,22 @@ def iniciar_geometric_individual():
     
     
     
-    #caso trivial
+    #caso trivial nro 41
     # estado_inicio =       "10000000000000000000"
     # condiciones   =       "11111111111111111111"
     # alcance       =       "01010101010101010101"
     # mecanismo     =       "01010101010101010101"
+    
+    #prueba 41 10A
+                            #ABCDEFGHIJ
+    # estado_inicio =       "1000000000"
+    # condiciones   =       "1111111111"
+    # alcance       =       "0101010101"
+    # mecanismo     =       "0101010101"
+    
+    # prueba 33 10A PRUEBA:
+                            #ABCDEFGHIJ
+    # estado_inicio =       "1000000000"
+    # condiciones   =       "1111111111"
+    # alcance       =       "1010101010"
+    # mecanismo     =       "1010101010"

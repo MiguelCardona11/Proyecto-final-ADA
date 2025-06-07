@@ -5,11 +5,10 @@ from src.models.core.ncube import NCube
 from src.models.core.system import System
 from src.models.base.sia import SIA
 from src.controllers.manager import Manager
-from typing import List, Tuple
+from typing import List, Tuple, Callable
 import numpy as np
-from itertools import product
+from itertools import product, combinations
 import pandas as pd
-from typing import Callable
 from src.funcs.format import fmt_biparticion
 from src.funcs.base import seleccionar_metrica
 from src.models.base.application import aplicacion
@@ -26,30 +25,33 @@ class GeometricSIA(SIA):
     def __init__(self, gestor: Manager):
         super().__init__(gestor)
         self._memoria_costos = {}
-        # self._contador_entraron = 0
-        # self._contador_no_entraron = 0
         self.distancia_metrica: Callable = seleccionar_metrica(aplicacion.distancia_metrica)
         
     def aplicar_estrategia(self, condiciones: str, alcance: str, mecanismo: str):
         self.sia_preparar_subsistema(condiciones, alcance, mecanismo)
-        # inicio = time.time()
         tabla = self.calcular_tabla_costos(self.sia_subsistema)
-        # fin = time.time()
-        # print(f"Tiempo de creacion de tabla: {fin-inicio:.4f}")
+        # print(tabla)
         # self.mostrar_tabla_costos(tabla, tuple(self.sia_subsistema.estado_inicial))
         
-        # print(f"entraron: {self._contador_entraron}")
-        # print(f"NO entraron: {self._contador_no_entraron}")
+        
+        # **** PRUEBA CALCULAR COSTO DE TRANSICIÓN ****
+        # origen = (0, 0, 0)
+        # hammings = self.generar_estados_hamming(origen, 3)
+        # print(hammings)
+        # destino = (0, 1, 1)
+        # mecanismo_str = self.sia_mecanismo_str
+        # mascara_presentes = np.array([bit == "1" for bit in mecanismo_str], dtype=bool)
+
+        # for i, ncubo in enumerate(self.sia_subsistema.ncubos):
+        #     print(f"\nCostos desde {origen} para NCube {i} (índice {ncubo.indice}):")
+        #     costo = self.calcular_costo_transicion(ncubo, origen, destino, mascara_presentes)
+        #     print(f"T[{origen} → {destino}] = {costo}")
+        
+        #return
         
         return self.identificar_biparticiones_candidatas(tabla)
     
     def calcular_tabla_costos(self, subsistema: System) -> np.ndarray:
-        """
-        Calcula la tabla de costos como matriz NumPy optimizada.
-
-        Returns:
-            np.ndarray: Matriz de shape (n_ncubos, 2^n) con los costos desde el estado inicial.
-        """
         n_ncubos = len(subsistema.ncubos)
         
         mecanismo_str = self.sia_mecanismo_str
@@ -58,98 +60,44 @@ class GeometricSIA(SIA):
         
         total_estados = 2 ** cantidad_presentes
         estado_inicial = tuple(self.sia_subsistema.estado_inicial[mascara_presentes])
+        # print(f"estado inicial --> {estado_inicial}")
 
-
-        # Inicializar matriz vacía
-        tabla_costos = np.zeros((n_ncubos, total_estados), dtype=np.float32) 
-
-        # Precomputar todos los estados posibles en notacion little endian (invertir bits)
-        todos_estados = [tuple(reversed(bits)) for bits in product([0, 1], repeat=cantidad_presentes)]
-
-        with concurrent.futures.ThreadPoolExecutor(max_workers=os.cpu_count()) as executor:
-            futures = []
-            for i, ncubo in enumerate(subsistema.ncubos):
-                future = executor.submit(self.calcular_costos_ncubo, i, ncubo, todos_estados, estado_inicial, mascara_presentes, tabla_costos)
-                futures.append(future)
+        #                       filas     columnas
+        tabla_costos = np.full((n_ncubos, total_estados), fill_value=np.nan, dtype=np.float32)
         
-        concurrent.futures.wait(futures)
+        posicion_inicial = self.binario_a_entero(estado_inicial)
+        tabla_costos[:, posicion_inicial] = 0.0
+
+        for i, ncubo in enumerate(subsistema.ncubos):
+            for j in range(1, len(estado_inicial) + 1):
+                hammings = self.generar_estados_hamming(estado_inicial, j)
+                if j > 1:
+                    for estado in hammings:
+                        posicion = self.binario_a_entero(estado)
+                        gamma = 2.0 ** (-j)
+                        t_ij = abs(ncubo.data[estado_inicial] - ncubo.data[estado])
+                        
+                        vecinos = self.vecinos_optimos_destino(estado_inicial, estado)
+                        sumatoria = 0.0
+                        for vecino in vecinos:
+                            pos_vecino = self.binario_a_entero(vecino)
+                            sumatoria += tabla_costos[i, pos_vecino]
+      
+                        costo = gamma * (t_ij + sumatoria)
+                        
+                        tabla_costos[i, posicion] = costo
+                else:     
+                    for estado in hammings:
+                        posicion = self.binario_a_entero(estado)
+                        gamma = 2.0 ** (-j)
+                        t_ij = abs(ncubo.data[estado_inicial] - ncubo.data[estado])
+                        costo = gamma * t_ij
+                        
+                        tabla_costos[i, posicion] = costo
+            
         return tabla_costos
     
-    def calcular_costos_ncubo(self, i, ncubo, todos_estados, estado_inicial, mascara_presentes, tabla_costos):
-        for destino in todos_estados:
-            if estado_inicial != destino:
-                idx = self.binario_a_entero(destino)
-                costo = self.calcular_costo_transicion(ncubo, estado_inicial, destino, mascara_presentes)
-                tabla_costos[i, idx] = costo 
-    
-    def calcular_costo_transicion(self, ncubo: NCube, origen: Tuple[int, ...], destino: Tuple[int, ...], mascara: np.ndarray) -> float:
-        """Calcula el costo de transición entre un estado origen y un estado destino en un NCubo dado."""
-
-        # self._contador_no_entraron = self._contador_no_entraron + 1
-        
-        origen = tuple(np.asarray(origen, dtype=np.uint8))
-        destino = tuple(np.asarray(destino, dtype=np.uint8))
-        
-        # Se revisa si este costo ya se ha calculado
-        resultado_costo = (ncubo.indice, origen, destino)
-        if resultado_costo in self._memoria_costos:
-            self._contador_entraron = self._contador_entraron + 1
-            return self._memoria_costos[resultado_costo]
-        
-        distancia = self.hamming_distance(origen, destino)
-        gamma = 2.0 ** (-distancia)
-        
-        # gamma_sumatoria = 2.0 ** (-1)
-        
-        # se reconstruyen los estados originales utilizando la mascara
-        estado_completo_origen = np.zeros_like(mascara, dtype=np.uint8)
-        estado_completo_origen[mascara] = origen
-        estado_completo_destino = np.zeros_like(mascara, dtype=np.uint8)
-        estado_completo_destino[mascara] = destino
-
-        origen_proy = tuple(estado_completo_origen[d] for d in ncubo.dims)
-        destino_proy = tuple(estado_completo_destino[d] for d in ncubo.dims)
-
-        t_ij = abs(ncubo.data[origen_proy] - ncubo.data[destino_proy])
-        
-        # vecinos = self.vecinos(destino)
-        # sumatoria = 0.0
-        
-        # for vecino in vecinos:
-        #     vecino = tuple(np.asarray(vecino, dtype=np.uint8))
-        #     estado_completo_vecino = np.zeros_like(mascara, dtype=np.uint8)
-        #     estado_completo_vecino[mascara] = vecino
-        #     vecino_proy = tuple(estado_completo_vecino[d] for d in ncubo.dims)
-        #     t_ik = abs(ncubo.data[origen_proy] - ncubo.data[vecino_proy])
-        #     sumatoria += gamma_sumatoria*t_ik
-        
-        # costo = gamma * (t_ij + sumatoria)
-        
-        # if distancia > 1:
-        #     vecinos_j = self.vecinos(destino)
-        #     costo_vecinos = 0.0
-        #     for k in vecinos_j:
-        #         costo_vecinos += self.calcular_costo_transicion(ncubo, origen, k, mascara)
-        #     costo = gamma * (t_ij + costo_vecinos)
-        
-        # else:
-        #     costo = gamma * t_ij
-
-
-        if distancia > 1:
-            vecinos_optimos = self.vecinos_optimos(origen, destino)
-            costo_vecinos = 0.0
-            for vecino in vecinos_optimos:
-                costo_vecinos += self.calcular_costo_transicion(ncubo, vecino, destino, mascara)
-            costo = gamma * (t_ij + costo_vecinos)
-        else:
-            costo = gamma * t_ij
-
-        # Se guarda resultado en memoria
-        self._memoria_costos[resultado_costo] = costo
-        return costo
-    
-    def vecinos_optimos(self, origen: Tuple[int, ...], destino: Tuple[int, ...]) -> List[Tuple[int, ...]]:
+    def vecinos_optimos_origen(self, origen: Tuple[int, ...], destino: Tuple[int, ...]) -> List[Tuple[int, ...]]:
         """Devuelve los vértices inmediatamente vecinos del vértice origen que se encuentran en algún camino óptimo hacia el vértice destino."""
         n = len(origen)
         vecinos = []
@@ -167,13 +115,26 @@ class GeometricSIA(SIA):
                 vecinos.append(vecino_tupla)
         return vecinos
     
-    def vecinos(self, estado: Tuple[int, ...]) -> List[Tuple[int, ...]]:
-        """Devuelve todos los vecinos inmediatos del estado dado (un solo bit de diferencia)."""
+    def vecinos_optimos_destino(self, origen: Tuple[int, ...], destino: Tuple[int, ...]) -> List[Tuple[int, ...]]:
+        """
+        Devuelve los vértices inmediatamente vecinos del vértice destino que se encuentran en algún
+        camino óptimo desde el vértice origen hacia el vértice destino.
+        """
+        n = len(destino)
         vecinos = []
-        for i in range(len(estado)):
-            vecino = list(estado)
+
+        distancia_actual = self.hamming_distance(origen, destino)
+
+        for i in range(n):
+            vecino = list(destino)
             vecino[i] = 1 - vecino[i]  # flip bit i
-            vecinos.append(tuple(vecino))
+            vecino_tupla = tuple(vecino)
+
+            nueva_distancia = self.hamming_distance(origen, vecino_tupla)
+
+            if nueva_distancia < distancia_actual:
+                vecinos.append(vecino_tupla)
+
         return vecinos
 
     def identificar_biparticiones_candidatas(self, tabla: np.ndarray) -> List[Tuple[np.ndarray, np.ndarray]]:
@@ -261,7 +222,7 @@ class GeometricSIA(SIA):
                 # print(f"Ganador: {ganador} con EMD = {emd_value}")
                 
                 if emd_value < mejor_emd:
-                    # print(f"****eligió a: {ganador} = {total_ganador}****")
+                    # print(f"eligió a: {ganador}")
                     mejor_emd = emd_value
                     mejor_dist_marg = dist_marg
                     
@@ -326,7 +287,37 @@ class GeometricSIA(SIA):
     def binario_str_a_entero(self, bits_str: str) -> int:
         """Convierte un string binario (ej: '0101') a entero en orden little-endian (bit menos significativo primero)."""
         return sum(int(b) << i for i, b in enumerate(reversed(bits_str)))
-            
+
+    def generar_estados_hamming(self, estado: Tuple[int, ...], distancia: int) -> List[Tuple[int, ...]]:
+        """
+        Genera todos los estados que tienen una distancia de Hamming exacta respecto a `estado`.
+
+        Args:
+            estado (Tuple[int, ...]): Estado base como tupla de bits (0 o 1).
+            distancia (int): Número de bits que deben diferir con respecto al estado base.
+
+        Returns:
+            List[Tuple[int, ...]]: Lista de estados con distancia de Hamming igual a `distancia`.
+
+        Raises:
+            ValueError: Si la distancia es inválida (negativa o mayor al número de bits del estado).
+        """
+        n = len(estado)
+
+        if not (0 <= distancia <= n):
+            raise ValueError(f"La distancia de Hamming debe estar entre 0 y {n}, pero se recibió {distancia}.")
+
+        estados_generados = []
+
+        # Generar todas las combinaciones de índices donde se hará flip de bits
+        for indices in combinations(range(n), distancia):
+            nuevo_estado = list(estado)
+            for i in indices:
+                nuevo_estado[i] = 1 - nuevo_estado[i]  # flip bit
+                
+            estados_generados.append(tuple(nuevo_estado))
+        return estados_generados
+ 
     def mostrar_tabla_costos(self, tabla: np.ndarray, estado_inicial: Tuple[int, ...]):
         mecanismo = self.sia_mecanismo_str
         n = mecanismo.count("1")
@@ -335,7 +326,6 @@ class GeometricSIA(SIA):
         variables = [f'Variable {i}' for i in range(tabla.shape[0])]
 
         df = pd.DataFrame(tabla.T, index=estados_bin, columns=variables)
-        print(f"Costos desde el estado inicial {estado_inicial}:\n")
         print(df)
 
 
