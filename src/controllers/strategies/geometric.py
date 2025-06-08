@@ -1,5 +1,4 @@
 import time
-import os
 import concurrent.futures
 import pandas as pd
 from src.models.core.ncube import NCube
@@ -29,12 +28,12 @@ class GeometricSIA(SIA):
         
     def aplicar_estrategia(self, condiciones: str, alcance: str, mecanismo: str):
         self.sia_preparar_subsistema(condiciones, alcance, mecanismo)
+        self._memoria_costos = {}
         tabla = self.calcular_tabla_costos(self.sia_subsistema)
-        # print("TABLA DE COSTOS ENCONTRADA")
         # self.mostrar_tabla_costos(tabla, mecanismo)
         # self.mostrar_tabla_costos_invertida(tabla, mecanismo)
         
-        return self.identificar_biparticiones_candidatas(tabla)
+        return self.identificar_biparticion(tabla)
 
     def calcular_costos_ncubo(self, estado_inicial, ncubo, tabla_costos, i):
         for j in range(1, len(estado_inicial) + 1):
@@ -55,6 +54,9 @@ class GeometricSIA(SIA):
                 costo = gamma * (t_ij + sumatoria)
                 tabla_costos[i, posicion] = costo
     
+    """
+    General tabla de costo de transiciones desde el estado incial de un subsistema, hacia el resto de estados de cada NCubo.
+    """
     def calcular_tabla_costos(self, subsistema: System) -> np.ndarray:
         n_ncubos = len(subsistema.ncubos)
         
@@ -80,7 +82,7 @@ class GeometricSIA(SIA):
         return tabla_costos
     
 
-    def identificar_biparticiones_candidatas(self, tabla: np.ndarray) -> List[Tuple[np.ndarray, np.ndarray]]:
+    def identificar_biparticion(self, tabla: np.ndarray) -> List[Tuple[np.ndarray, np.ndarray]]:
 
         n_estados = tabla.shape[1] # cantidad de columnas, en este caso son los estados del presente
         n_bits = int(np.log2(n_estados))
@@ -89,9 +91,7 @@ class GeometricSIA(SIA):
         mascara_mecanismo = np.array([bit == "1" for bit in self.sia_mecanismo_str], dtype=bool)
         estado_filtrado = self.sia_subsistema.estado_inicial[mascara_mecanismo]
         estado_inicial_bin = ''.join(str(b) for b in estado_filtrado)
-        # print(f"Estado inicial real: {estado_inicial_bin}")
         estado_inicial_int = self.binario_str_a_entero(estado_inicial_bin)
-        # print(f"Binario: {estado_inicial_bin} igual a {estado_inicial_int} entero ")
         
         mecanismo_str = self.sia_mecanismo_str
         alcance_str = self.sia_alcance_str
@@ -110,50 +110,41 @@ class GeometricSIA(SIA):
         while not encontrado_emd_cero and (estado <= int(n_estados/2)-1):
             # *** BUSQUEDA DE CANDIDATOS ***
             complemento = estado ^ (n_estados - 1)
-            # print(f"Comparando {estado} con {complemento}")
-            
             fila_1 = tabla[:, estado]
             fila_2 = tabla[:, complemento]
             
-            # Todas combinaciones binarias posibles (0 = estado, 1 = complemento)
-            combinaciones = product([0, 1], repeat=len(fila_1))
+            candidatos_parciales = [[]]
 
-            mejor_total = float('inf')
+            for i in range(len(fila_1)):
+                nuevo_conjunto = []
+                costo_1 = fila_1[i]
+                costo_2 = fila_2[i]
+                
+                if costo_1 < costo_2:
+                    for parcial in candidatos_parciales:
+                        nuevo_conjunto.append(parcial + [estado])
+                elif costo_2 < costo_1:
+                    for parcial in candidatos_parciales:
+                        nuevo_conjunto.append(parcial + [complemento])
+                else:  # empate, duplicar caminos
+                    for parcial in candidatos_parciales:
+                        nuevo_conjunto.append(parcial + [estado])
+                        nuevo_conjunto.append(parcial + [complemento])
+                
+                candidatos_parciales = nuevo_conjunto
+
+            # Se retiran candidatos triviales
             candidatos = []
 
-            for config in combinaciones:
-                candidato = []
-                total = 0.0
-                for i, elegir_complemento in enumerate(config):
-                    if elegir_complemento:
-                        candidato.append(complemento)
-                        total += fila_2[i]
-                    else:
-                        candidato.append(estado)
-                        total += fila_1[i]
-
-                es_igual_al_inicio = all(idx == estado_inicial_int for idx in candidato)
-                # print(f"estado_inicial_bin: {estado_inicial_bin} estado_inicial_int: {estado_inicial_int}")
-                # print(f"candidato {candidato} con suma total: {total}")
-
-                # Solo considerar candidatos válidos
-                if not es_igual_al_inicio:
-                    if total < mejor_total:
-                        mejor_total = total
-                        candidatos = [list(candidato)]
-                    elif total == mejor_total:
-                        candidatos.append(list(candidato))
-                    
-                    # print(f"Candidato: {candidato} con suma total: total{total}")
+            for candidato_int in candidatos_parciales:
+                if not all(idx == estado_inicial_int for idx in candidato_int):
+                    candidatos.append(candidato_int)
 
             # *** EVALUACION DE LOS CANDIDATOS ***
-
             for candidato_int in candidatos:
-                # print(f"candidato: {candidato_int}")
+                candidato_int = candidato_int[::-1]
                 candidato = tuple(format(i, f'0{n_bits}b') for i in candidato_int)
-                # print(f"Candidato: {candidato}")
-                # print(f"int: {candidato_int} equivale a {candidato}")
-                
+                            
                 # construir candidato a a partir de los strings binarios
                 referencia = candidato[0]
                 arr_alcance_prim = []
@@ -173,18 +164,16 @@ class GeometricSIA(SIA):
                                     arr_mecanismo_prim.append(idx_real)
                 
                 emd_value, dist_marg = self.calcular_emd(arr_alcance_prim, arr_mecanismo_prim)
-                # print(f"Candidato: {candidato} con EMD = {emd_value}")
                 
                 if emd_value == 0.0:
                     encontrado_emd_cero = True
-                
+                                
                 # ***CONSTRUCCION DE BIPARTICION
                 if emd_value < mejor_emd:
-                    # print(f"eligió a: {candidato}") 
                     mejor_emd = emd_value
                     mejor_dist_marg = dist_marg
                     
-                    # construir segunda biparticion a partir del complemento de la primera (solo si el emd_value de la particion prim es óptimo)
+                    # construir segunda biparticion a partir del complemento de la primera
                     todas_alcance = set(indices_alcance)
                     alcance_asignado = set(arr_alcance_prim)
                     no_asignadas_alcance = todas_alcance - alcance_asignado
@@ -195,8 +184,6 @@ class GeometricSIA(SIA):
 
                     arr_mecanismo_dual.extend(no_asignadas_mecanismo)
                     arr_alcance_dual.extend(no_asignadas_alcance)
-                    
-                    # print(f"Evaluando bipartición: {arr_alcance_prim}, {arr_mecanismo_prim} | {arr_alcance_dual}, {arr_mecanismo_dual} -> EMD: {emd_value:.4f}")
                 
                     # formatear biparticiones para construccion de la biparticion solucion
                     subalcance_prim = tuple(arr_alcance_prim)
@@ -339,10 +326,8 @@ class GeometricSIA(SIA):
         df = pd.DataFrame(tabla.T, index=etiquetas_filas, columns=etiquetas_columnas)
         
         print(df.to_string())
-
-
-
-
-
+    
+    def vecinos_optimos():
+        pass
 
 

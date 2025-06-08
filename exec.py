@@ -9,12 +9,12 @@ def main():
     """Inicializar el aplicativo."""
     profiler_manager.enabled = True
 
-    aplicacion.pagina_sample_network = "A"
+    aplicacion.pagina_sample_network = "C"
     
-    # iniciar_geometric_individual()
-    # iniciar_force_individual()s
+    iniciar_geometric_individual()
+    # iniciar_force_individual()
 
-    iniciar_estrategia(20, 3, "20A_GEOMETRIC.xlsx")
+    # iniciar_estrategia(5, 3, "10A_GEOMETRIC.xlsx")
     # iniciar_qnodes_individual()
     # iniciar_phi_individual()
     
