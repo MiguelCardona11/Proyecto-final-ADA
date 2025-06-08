@@ -142,7 +142,6 @@ class GeometricSIA(SIA):
 
             # *** EVALUACION DE LOS CANDIDATOS ***
             for candidato_int in candidatos:
-                candidato_int = candidato_int[::-1]
                 candidato = tuple(format(i, f'0{n_bits}b') for i in candidato_int)
                             
                 # construir candidato a a partir de los strings binarios
