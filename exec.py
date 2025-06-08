@@ -11,10 +11,10 @@ def main():
 
     aplicacion.pagina_sample_network = "A"
     
-    iniciar_geometric_individual()
+    # iniciar_geometric_individual()
     # iniciar_force_individual()s
 
-    #iniciar_estrategia(5, 2, "5A_Qnodes.xlsx")
+    iniciar_estrategia(10, 3, "10A_Geometric.xlsx")
     # iniciar_qnodes_individual()
     # iniciar_phi_individual()
     

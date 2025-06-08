@@ -1,6 +1,7 @@
 import time
 import os
 import concurrent.futures
+import pandas as pd
 from src.models.core.ncube import NCube
 from src.models.core.system import System
 from src.models.base.sia import SIA
@@ -30,24 +31,9 @@ class GeometricSIA(SIA):
     def aplicar_estrategia(self, condiciones: str, alcance: str, mecanismo: str):
         self.sia_preparar_subsistema(condiciones, alcance, mecanismo)
         tabla = self.calcular_tabla_costos(self.sia_subsistema)
-        # print(tabla)
-        # self.mostrar_tabla_costos(tabla, tuple(self.sia_subsistema.estado_inicial))
-        
-        
-        # **** PRUEBA CALCULAR COSTO DE TRANSICIÓN ****
-        # origen = (0, 0, 0)
-        # hammings = self.generar_estados_hamming(origen, 3)
-        # print(hammings)
-        # destino = (0, 1, 1)
-        # mecanismo_str = self.sia_mecanismo_str
-        # mascara_presentes = np.array([bit == "1" for bit in mecanismo_str], dtype=bool)
-
-        # for i, ncubo in enumerate(self.sia_subsistema.ncubos):
-        #     print(f"\nCostos desde {origen} para NCube {i} (índice {ncubo.indice}):")
-        #     costo = self.calcular_costo_transicion(ncubo, origen, destino, mascara_presentes)
-        #     print(f"T[{origen} → {destino}] = {costo}")
-        
-        #return
+        # print("TABLA DE COSTOS ENCONTRADA")
+        # self.mostrar_tabla_costos(tabla, mecanismo)
+        # self.mostrar_tabla_costos_invertida(tabla, mecanismo)
         
         return self.identificar_biparticiones_candidatas(tabla)
     
@@ -60,8 +46,6 @@ class GeometricSIA(SIA):
         
         total_estados = 2 ** cantidad_presentes
         estado_inicial = tuple(self.sia_subsistema.estado_inicial[mascara_presentes])
-        # print(f"estado inicial --> {estado_inicial}")
-
         #                       filas     columnas
         tabla_costos = np.full((n_ncubos, total_estados), fill_value=np.nan, dtype=np.float32)
         
@@ -85,7 +69,9 @@ class GeometricSIA(SIA):
       
                         costo = gamma * (t_ij + sumatoria)
                         
+                        # inverso = posicion ^ (total_estados - 1)
                         tabla_costos[i, posicion] = costo
+                        tabla_costos[i, posicion ^ (total_estados - 1)] = costo
                 else:     
                     for estado in hammings:
                         posicion = self.binario_a_entero(estado)
@@ -93,27 +79,11 @@ class GeometricSIA(SIA):
                         t_ij = abs(ncubo.data[estado_inicial] - ncubo.data[estado])
                         costo = gamma * t_ij
                         
+                        # inverso = posicion ^ (total_estados - 1)
                         tabla_costos[i, posicion] = costo
+                        tabla_costos[i, posicion ^ (total_estados - 1)] = costo
             
         return tabla_costos
-    
-    def vecinos_optimos_origen(self, origen: Tuple[int, ...], destino: Tuple[int, ...]) -> List[Tuple[int, ...]]:
-        """Devuelve los vértices inmediatamente vecinos del vértice origen que se encuentran en algún camino óptimo hacia el vértice destino."""
-        n = len(origen)
-        vecinos = []
-
-        distancia_actual = self.hamming_distance(origen, destino)
-
-        for i in range(n):
-            vecino = list(origen)
-            vecino[i] = 1 - vecino[i]  # flip bit i
-            vecino_tupla = tuple(vecino)
-
-            nueva_distancia = self.hamming_distance(vecino_tupla, destino)
-
-            if nueva_distancia < distancia_actual:
-                vecinos.append(vecino_tupla)
-        return vecinos
     
     def vecinos_optimos_destino(self, origen: Tuple[int, ...], destino: Tuple[int, ...]) -> List[Tuple[int, ...]]:
         """
@@ -158,50 +128,60 @@ class GeometricSIA(SIA):
         
         # inicializacion de variables de solucion
         emd_value = 1.0
+        encontrado_emd_cero = False
         mejor_emd = float('inf')
         mejor_dist_marg = DUMMY_ARR
         biparticion_formateada = None
         
-        # identificar los ganadores como strings binarios en little-endian
         estado = 0
-        while (emd_value != 0.0 and (estado <= int(n_estados/2))):
+        while not encontrado_emd_cero and (estado <= int(n_estados/2)-1):
+            # *** BUSQUEDA DE CANDIDATOS ***
             complemento = estado ^ (n_estados - 1)
+            # print(f"Comparando {estado} con {complemento}")
+            
             fila_1 = tabla[:, estado]
             fila_2 = tabla[:, complemento]
             
             # Todas combinaciones binarias posibles (0 = estado, 1 = complemento)
-            candidatos = product([0, 1], repeat=len(fila_1))
+            combinaciones = product([0, 1], repeat=len(fila_1))
 
             mejor_total = float('inf')
-            mejores_ganadores = []
+            candidatos = []
 
-            for config in candidatos:
-                ganador_actual = []
+            for config in combinaciones:
+                candidato = []
                 total = 0.0
                 for i, elegir_complemento in enumerate(config):
                     if elegir_complemento:
-                        ganador_actual.append(complemento)
+                        candidato.append(complemento)
                         total += fila_2[i]
                     else:
-                        ganador_actual.append(estado)
+                        candidato.append(estado)
                         total += fila_1[i]
 
-                es_igual_al_inicio = all(idx == estado_inicial_int for idx in ganador_actual)
+                es_igual_al_inicio = all(idx == estado_inicial_int for idx in candidato)
+                # print(f"estado_inicial_bin: {estado_inicial_bin} estado_inicial_int: {estado_inicial_int}")
+                # print(f"candidato {candidato} con suma total: {total}")
 
                 # Solo considerar candidatos válidos
                 if not es_igual_al_inicio:
                     if total < mejor_total:
                         mejor_total = total
-                        mejores_ganadores = [list(ganador_actual)]
+                        # print(f"candidato {candidato} con suma total: {mejor_total}")
+                        candidatos = [list(candidato)]
                     elif total == mejor_total:
-                        mejores_ganadores.append(list(ganador_actual))
-                        
-            # evitar la biparticion donde todos los indices son iguales al estado inicial o sean ganadores triviales
-            for indices_ganadores in mejores_ganadores:
-                ganador = tuple(format(i, f'0{n_bits}b')[::-1] for i in indices_ganadores)
+                        candidatos.append(list(candidato))
+                    
+                    print(f"Candidato: {candidato} con suma total: total{total}")
+
+            # *** EVALUACION DE LOS CANDIDATOS ***
+
+            for candidato_int in candidatos:
+                candidato = tuple(format(i, f'0{n_bits}b') for i in candidato_int)
+                # print(f"int: {candidato_int} equivale a {candidato}")
                 
                 # construir candidato a a partir de los strings binarios
-                referencia = ganador[0]
+                referencia = candidato[0]
                 arr_alcance_prim = []
                 arr_mecanismo_prim = []
                 
@@ -209,7 +189,7 @@ class GeometricSIA(SIA):
                 arr_mecanismo_dual = []
                 
                 # construccion de la biparticion prim
-                for idx, actual in enumerate(ganador):
+                for idx, actual in enumerate(candidato):
                     if actual == referencia: # [000 111 111]
                         arr_alcance_prim.append(indices_alcance[idx])
                         for i in range(n_bits):
@@ -219,10 +199,14 @@ class GeometricSIA(SIA):
                                     arr_mecanismo_prim.append(idx_real)
                 
                 emd_value, dist_marg = self.calcular_emd(arr_alcance_prim, arr_mecanismo_prim)
-                # print(f"Ganador: {ganador} con EMD = {emd_value}")
+                print(f"Candidato: {candidato} con EMD = {emd_value}")
                 
+                if emd_value == 0.0:
+                    encontrado_emd_cero = True
+                
+                # ***CONSTRUCCION DE BIPARTICION
                 if emd_value < mejor_emd:
-                    # print(f"eligió a: {ganador}")
+                    # print(f"eligió a: {candidato}") 
                     mejor_emd = emd_value
                     mejor_dist_marg = dist_marg
                     
@@ -238,7 +222,6 @@ class GeometricSIA(SIA):
                     arr_mecanismo_dual.extend(no_asignadas_mecanismo)
                     arr_alcance_dual.extend(no_asignadas_alcance)
                     
-                    # if arr_alcance_dual and arr_mecanismo_dual:
                     # print(f"Evaluando bipartición: {arr_alcance_prim}, {arr_mecanismo_prim} | {arr_alcance_dual}, {arr_mecanismo_dual} -> EMD: {emd_value:.4f}")
                 
                     # formatear biparticiones para construccion de la biparticion solucion
@@ -254,7 +237,7 @@ class GeometricSIA(SIA):
                         [biparticion_prim[ACTUAL], biparticion_prim[EFECTO]],
                         [biparticion_dual[ACTUAL], biparticion_dual[EFECTO]],
                     )
-                    
+                
             estado += 1
         
         return Solution(
@@ -317,16 +300,60 @@ class GeometricSIA(SIA):
                 
             estados_generados.append(tuple(nuevo_estado))
         return estados_generados
- 
-    def mostrar_tabla_costos(self, tabla: np.ndarray, estado_inicial: Tuple[int, ...]):
-        mecanismo = self.sia_mecanismo_str
-        n = mecanismo.count("1")
-        
-        estados_bin = [format(i, f'0{n}b')[::-1] for i in range(2**n)]  # Reverso para Little Endian [::-1]
-        variables = [f'Variable {i}' for i in range(tabla.shape[0])]
+    
+    import pandas as pd
 
-        df = pd.DataFrame(tabla.T, index=estados_bin, columns=variables)
-        print(df)
+    def mostrar_tabla_costos(self, tabla: np.ndarray, mecanismo_str: str):
+        """
+        Muestra la tabla de costos con índices binarios para las columnas y
+        etiquetas de filas para cada ncubo.
+        
+        Parámetros:
+        - tabla: np.ndarray, matriz de forma (n_ncubos, total_estados)
+        - mecanismo_str: str, como "10011", para calcular cuántos bits activos hay
+        """
+        cantidad_presentes = sum(bit == "1" for bit in mecanismo_str)
+        total_estados = 2 ** cantidad_presentes
+        
+        # Generar etiquetas binarios para las columnas
+        etiquetas_columnas = [
+            format(i, f"0{cantidad_presentes}b") for i in range(total_estados)
+        ]
+        
+        # Generar etiquetas para las filas (por ejemplo "NCubo 0", "NCubo 1", etc.)
+        etiquetas_filas = [f"NCubo {i}" for i in range(tabla.shape[0])]
+        
+        # Crear DataFrame
+        df = pd.DataFrame(tabla, index=etiquetas_filas, columns=etiquetas_columnas)
+        print(df.to_string())
+        
+    import pandas as pd
+
+    def mostrar_tabla_costos_invertida(self, tabla: np.ndarray, mecanismo_str: str):
+        """
+        Muestra la tabla de costos con estados binarios como filas y NCubos como columnas.
+        
+        Parámetros:
+        - tabla: np.ndarray de forma (n_ncubos, total_estados)
+        - mecanismo_str: str, como "10011"
+        """
+        cantidad_presentes = sum(bit == "1" for bit in mecanismo_str)
+        total_estados = 2 ** cantidad_presentes
+
+        # Etiquetas de filas: estados binarios (00000, 00001, ..., 11111)
+        etiquetas_filas = [
+            format(i, f"0{cantidad_presentes}b") for i in range(total_estados)
+        ]
+        
+        # Etiquetas de columnas: NCubo 0, NCubo 1, ...
+        etiquetas_columnas = [f"NCubo {i}" for i in range(tabla.shape[0])]
+        
+        # Transponer para que los estados sean las filas
+        df = pd.DataFrame(tabla.T, index=etiquetas_filas, columns=etiquetas_columnas)
+        
+        print(df.to_string())
+
+
 
 
 

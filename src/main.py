@@ -292,10 +292,10 @@ def iniciar_qnodes_individual():
 def iniciar_geometric_individual():
     """Ejecución individual de la estrategia Geometric."""
                           #ABCDEFGHIJKLMNO  
-    estado_inicio =       "10000"
-    condiciones   =       "11111"
-    alcance       =       "01111"
-    mecanismo     =       "11110"
+    estado_inicio =       "1000000000"
+    condiciones   =       "1111111111"
+    alcance       =       "1111111111"
+    mecanismo     =       "1111111111"
     
 
     config_sistema = Manager(estado_inicial=estado_inicio)
