@@ -25,7 +25,6 @@ from src.constants.models import (
 class GeometricSIA(SIA):
     def __init__(self, gestor: Manager):
         super().__init__(gestor)
-        self._memoria_costos = {}
         self.distancia_metrica: Callable = seleccionar_metrica(aplicacion.distancia_metrica)
         
     def aplicar_estrategia(self, condiciones: str, alcance: str, mecanismo: str):
@@ -36,6 +35,25 @@ class GeometricSIA(SIA):
         # self.mostrar_tabla_costos_invertida(tabla, mecanismo)
         
         return self.identificar_biparticiones_candidatas(tabla)
+
+    def calcular_costos_ncubo(self, estado_inicial, ncubo, tabla_costos, i):
+        for j in range(1, len(estado_inicial) + 1):
+            hammings = self.generar_estados_hamming(estado_inicial, j)
+            gamma = 2.0 ** (-j)
+
+            for estado in hammings:
+                posicion = self.binario_a_entero(estado)
+                t_ij = abs(ncubo.data[estado_inicial] - ncubo.data[estado])
+                
+                sumatoria = 0.0
+                if j > 1:
+                    vecinos = self.vecinos_optimos_destino(estado_inicial, estado)
+                    for vecino in vecinos:
+                        pos_vecino = self.binario_a_entero(vecino)
+                        sumatoria += tabla_costos[i, pos_vecino]
+                        
+                costo = gamma * (t_ij + sumatoria)
+                tabla_costos[i, posicion] = costo
     
     def calcular_tabla_costos(self, subsistema: System) -> np.ndarray:
         n_ncubos = len(subsistema.ncubos)
@@ -52,60 +70,15 @@ class GeometricSIA(SIA):
         posicion_inicial = self.binario_a_entero(estado_inicial)
         tabla_costos[:, posicion_inicial] = 0.0
 
-        for i, ncubo in enumerate(subsistema.ncubos):
-            for j in range(1, len(estado_inicial) + 1):
-                hammings = self.generar_estados_hamming(estado_inicial, j)
-                if j > 1:
-                    for estado in hammings:
-                        posicion = self.binario_a_entero(estado)
-                        gamma = 2.0 ** (-j)
-                        t_ij = abs(ncubo.data[estado_inicial] - ncubo.data[estado])
-                        
-                        vecinos = self.vecinos_optimos_destino(estado_inicial, estado)
-                        sumatoria = 0.0
-                        for vecino in vecinos:
-                            pos_vecino = self.binario_a_entero(vecino)
-                            sumatoria += tabla_costos[i, pos_vecino]
-      
-                        costo = gamma * (t_ij + sumatoria)
-                        
-                        # inverso = posicion ^ (total_estados - 1)
-                        tabla_costos[i, posicion] = costo
-                        tabla_costos[i, posicion ^ (total_estados - 1)] = costo
-                else:     
-                    for estado in hammings:
-                        posicion = self.binario_a_entero(estado)
-                        gamma = 2.0 ** (-j)
-                        t_ij = abs(ncubo.data[estado_inicial] - ncubo.data[estado])
-                        costo = gamma * t_ij
-                        
-                        # inverso = posicion ^ (total_estados - 1)
-                        tabla_costos[i, posicion] = costo
-                        tabla_costos[i, posicion ^ (total_estados - 1)] = costo
-            
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+            futures = []
+            for i, ncubo in enumerate(subsistema.ncubos):
+                future = executor.submit(self.calcular_costos_ncubo, estado_inicial, ncubo, tabla_costos, i)
+                futures.append(future)
+                
+        concurrent.futures.wait(futures)
         return tabla_costos
     
-    def vecinos_optimos_destino(self, origen: Tuple[int, ...], destino: Tuple[int, ...]) -> List[Tuple[int, ...]]:
-        """
-        Devuelve los vértices inmediatamente vecinos del vértice destino que se encuentran en algún
-        camino óptimo desde el vértice origen hacia el vértice destino.
-        """
-        n = len(destino)
-        vecinos = []
-
-        distancia_actual = self.hamming_distance(origen, destino)
-
-        for i in range(n):
-            vecino = list(destino)
-            vecino[i] = 1 - vecino[i]  # flip bit i
-            vecino_tupla = tuple(vecino)
-
-            nueva_distancia = self.hamming_distance(origen, vecino_tupla)
-
-            if nueva_distancia < distancia_actual:
-                vecinos.append(vecino_tupla)
-
-        return vecinos
 
     def identificar_biparticiones_candidatas(self, tabla: np.ndarray) -> List[Tuple[np.ndarray, np.ndarray]]:
 
@@ -167,17 +140,18 @@ class GeometricSIA(SIA):
                 if not es_igual_al_inicio:
                     if total < mejor_total:
                         mejor_total = total
-                        # print(f"candidato {candidato} con suma total: {mejor_total}")
                         candidatos = [list(candidato)]
                     elif total == mejor_total:
                         candidatos.append(list(candidato))
                     
-                    print(f"Candidato: {candidato} con suma total: total{total}")
+                    # print(f"Candidato: {candidato} con suma total: total{total}")
 
             # *** EVALUACION DE LOS CANDIDATOS ***
 
             for candidato_int in candidatos:
+                # print(f"candidato: {candidato_int}")
                 candidato = tuple(format(i, f'0{n_bits}b') for i in candidato_int)
+                # print(f"Candidato: {candidato}")
                 # print(f"int: {candidato_int} equivale a {candidato}")
                 
                 # construir candidato a a partir de los strings binarios
@@ -199,7 +173,7 @@ class GeometricSIA(SIA):
                                     arr_mecanismo_prim.append(idx_real)
                 
                 emd_value, dist_marg = self.calcular_emd(arr_alcance_prim, arr_mecanismo_prim)
-                print(f"Candidato: {candidato} con EMD = {emd_value}")
+                # print(f"Candidato: {candidato} con EMD = {emd_value}")
                 
                 if emd_value == 0.0:
                     encontrado_emd_cero = True
@@ -250,6 +224,28 @@ class GeometricSIA(SIA):
             hablar=False
         )
 
+    def vecinos_optimos_destino(self, origen: Tuple[int, ...], destino: Tuple[int, ...]) -> List[Tuple[int, ...]]:
+        """
+        Devuelve los vértices inmediatamente vecinos del vértice destino que se encuentran en algún
+        camino óptimo desde el vértice origen hacia el vértice destino.
+        """
+        n = len(destino)
+        vecinos = []
+
+        distancia_actual = self.hamming_distance(origen, destino)
+
+        for i in range(n):
+            vecino = list(destino)
+            vecino[i] = 1 - vecino[i]  # flip bit i
+            vecino_tupla = tuple(vecino)
+
+            nueva_distancia = self.hamming_distance(origen, vecino_tupla)
+
+            if nueva_distancia < distancia_actual:
+                vecinos.append(vecino_tupla)
+
+        return vecinos
+
     def calcular_emd(self, arr_alcance_prim: np.ndarray, arr_mecanismo_prim: np.ndarray):
         subsistema = self.sia_subsistema
         distribucion_original = self.sia_dists_marginales
@@ -286,12 +282,7 @@ class GeometricSIA(SIA):
             ValueError: Si la distancia es inválida (negativa o mayor al número de bits del estado).
         """
         n = len(estado)
-
-        if not (0 <= distancia <= n):
-            raise ValueError(f"La distancia de Hamming debe estar entre 0 y {n}, pero se recibió {distancia}.")
-
         estados_generados = []
-
         # Generar todas las combinaciones de índices donde se hará flip de bits
         for indices in combinations(range(n), distancia):
             nuevo_estado = list(estado)
@@ -300,8 +291,6 @@ class GeometricSIA(SIA):
                 
             estados_generados.append(tuple(nuevo_estado))
         return estados_generados
-    
-    import pandas as pd
 
     def mostrar_tabla_costos(self, tabla: np.ndarray, mecanismo_str: str):
         """
@@ -326,8 +315,6 @@ class GeometricSIA(SIA):
         # Crear DataFrame
         df = pd.DataFrame(tabla, index=etiquetas_filas, columns=etiquetas_columnas)
         print(df.to_string())
-        
-    import pandas as pd
 
     def mostrar_tabla_costos_invertida(self, tabla: np.ndarray, mecanismo_str: str):
         """

@@ -79,7 +79,7 @@ def worker(estado_inicio, condiciones, mecanismo, alcance, estrategia, queue):
 
 def procesar_estrategia(estado_inicio, condiciones, mecanismo, alcance, prueba_num, estrategia: int):
     """
-    Ejecuta la prueba en un proceso separado. Si el proceso tarda más de 700 segundos,
+    Ejecuta la prueba en un proceso separado. Si el proceso tarda más de 800 segundos,
     se termina y se retorna un diccionario con campos en blanco (pero conservando el número de prueba).
     """
     inicio = time.time()
@@ -89,12 +89,12 @@ def procesar_estrategia(estado_inicio, condiciones, mecanismo, alcance, prueba_n
         args=(estado_inicio, condiciones, mecanismo, alcance, estrategia, queue)
     )
     proceso.start()
-    proceso.join(timeout=700)  # Espera hasta 700 segundos
+    proceso.join(timeout=800)  # Espera hasta 800 segundos
 
     if proceso.is_alive():
         proceso.terminate()
         proceso.join()
-        print(f"La prueba {prueba_num} excedió el límite de tiempo de 700 segundos y será omitida.")
+        print(f"La prueba {prueba_num} excedió el límite de tiempo de 800 segundos y será omitida.")
         return {
             "Prueba": prueba_num,
             "Mecanismo": "",
@@ -292,10 +292,10 @@ def iniciar_qnodes_individual():
 def iniciar_geometric_individual():
     """Ejecución individual de la estrategia Geometric."""
                           #ABCDEFGHIJKLMNO  
-    estado_inicio =       "1000000000"
-    condiciones   =       "1111111111"
-    alcance       =       "1111111111"
-    mecanismo     =       "1111111111"
+    estado_inicio =       "10000000000000000000"
+    condiciones   =       "11111111111111111111"
+    alcance       =       "01010101010101010101"
+    mecanismo     =       "01010101010101010101"
     
 
     config_sistema = Manager(estado_inicial=estado_inicio)
@@ -314,19 +314,26 @@ def iniciar_geometric_individual():
     # alcance       =       "010101010101010"
     # mecanismo     =       "101010101010101"
     
-    # prueba 20A nro 33 ~70segundos:
+    #prueba 33 20A
     # estado_inicio =       "10000000000000000000"
     # condiciones   =       "11111111111111111111"
     # alcance       =       "10101010101010101010"
     # mecanismo     =       "10101010101010101010"
     
+    #prueba 40 20A
+    # estado_inicio =       "10000000000000000000"
+    # condiciones   =       "11111111111111111111"
+    # alcance       =       "01010101010101010101"
+    # mecanismo     =       "10101010101010101010"
     
-    
-    #caso trivial nro 41
+    #prueba 41 20A
     # estado_inicio =       "10000000000000000000"
     # condiciones   =       "11111111111111111111"
     # alcance       =       "01010101010101010101"
     # mecanismo     =       "01010101010101010101"
+    
+    
+    
     
     #prueba 41 10A
                             #ABCDEFGHIJ
