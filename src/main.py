@@ -31,6 +31,29 @@ mecanismo_cincuenta_15 = "011111111111111"
 alcance_cincuenta_15   = "011111100111111"
 patrones_15            = ["111111111111111", "111111111111110", "011111111111111", "011111111111110", "101010101010101", "010101010101010", "110110110110110"]
 
+# 16 NODOS: ABCDEFGHIJKLMNOPQR
+estado_inicio_16       = "1000000000000000"
+condiciones_16         = "1111111111111111"
+mecanismo_cincuenta_16 = "1100110011001100"
+alcance_cincuenta_16   = "1100110011001100"
+patrones_16            = ["1111111111111111", "1111111111111110", "0111111111111111", "0111111111111110", "1010101010101010", "0101010101010101", "1101101101101101"]
+
+
+# 17 NODOS: ABCDEFGHIJKLMNOPQR
+estado_inicio_17       = "10000000000000000"
+condiciones_17         = "11111111111111111"
+mecanismo_cincuenta_17 = "11001100110011001"
+alcance_cincuenta_17   = "11001100110011001"
+patrones_17            = ["11111111111111111", "11111111111111110", "01111111111111111", "01111111111111110", "10101010101010101", "01010101010101010", "11011011011011011"]
+
+
+# 18 NODOS: ABCDEFGHIJKLMNOPQR
+estado_inicio_18       = "100000000000000000"
+condiciones_18         = "111111111111111111"
+mecanismo_cincuenta_18 = "110011001100110011"
+alcance_cincuenta_18   = "110011001100110011"
+patrones_18            = ["111111111111111111", "111111111111111110", "011111111111111111", "011111111111111110", "101010101010101010", "010101010101010101", "110110110110110110"]
+
 # 20 NODOS: ABCDEFGHIJKLMNOPQRST
 estado_inicio_20       = "10000000000000000000"
 condiciones_20         = "11111111111111111111"
@@ -79,7 +102,7 @@ def worker(estado_inicio, condiciones, mecanismo, alcance, estrategia, queue):
 
 def procesar_estrategia(estado_inicio, condiciones, mecanismo, alcance, prueba_num, estrategia: int):
     """
-    Ejecuta la prueba en un proceso separado. Si el proceso tarda más de 800 segundos,
+    Ejecuta la prueba en un proceso separado. Si el proceso tarda más de 3600 segundos,
     se termina y se retorna un diccionario con campos en blanco (pero conservando el número de prueba).
     """
     inicio = time.time()
@@ -89,12 +112,12 @@ def procesar_estrategia(estado_inicio, condiciones, mecanismo, alcance, prueba_n
         args=(estado_inicio, condiciones, mecanismo, alcance, estrategia, queue)
     )
     proceso.start()
-    proceso.join(timeout=800)  # Espera hasta 800 segundos
+    proceso.join(timeout=3600)  # Espera hasta 3600 segundos
 
     if proceso.is_alive():
         proceso.terminate()
         proceso.join()
-        print(f"La prueba {prueba_num} excedió el límite de tiempo de 800 segundos y será omitida.")
+        print(f"La prueba {prueba_num} excedió el límite de tiempo de 3600 segundos y será omitida.")
         return {
             "Prueba": prueba_num,
             "Mecanismo": "",
@@ -141,10 +164,15 @@ def procesar_estrategia(estado_inicio, condiciones, mecanismo, alcance, prueba_n
                 "Partición óptima": ""
             }
 
-def iniciar_estrategia(cantidad_nodos: int, estrategia: int, nombre_archivo):
+def iniciar_estrategia(cantidad_nodos: int, estrategia: int, nombre_archivo, incluir_pruebas: list[int] = None):
     """
-    Ejecuta las 50 pruebas de una estrategia dada. 1 --> (Pyphi) 2 --> (QNodes)
+    Ejecuta las 50 pruebas de una estrategia dada. 1 --> (Pyphi), 2 --> (QNodes), 3 --> (Geometric).
+    Puedes indicar qué pruebas ejecutar pasando una lista a `incluir_pruebas`, por ejemplo: [5, 6, 8].
+    Si no se pasa ninguna lista, se ejecutan todas las pruebas.
     """
+    if incluir_pruebas is not None:
+        incluir_pruebas = set(incluir_pruebas)  # Para acceso rápido
+
     if estrategia not in (1, 2, 3):
         print("Estrategia no soportada, solo se soportan 1 (Pyphi), 2 (QNodes) y 3 (Geometric).")
         return
@@ -167,6 +195,24 @@ def iniciar_estrategia(cantidad_nodos: int, estrategia: int, nombre_archivo):
         mecanismo_cincuenta = mecanismo_cincuenta_15
         alcance_cincuenta = alcance_cincuenta_15
         patrones = patrones_15
+    elif cantidad_nodos == 16:
+        estado_inicio = estado_inicio_16
+        condiciones = condiciones_16
+        mecanismo_cincuenta = mecanismo_cincuenta_16
+        alcance_cincuenta = alcance_cincuenta_16
+        patrones = patrones_16
+    elif cantidad_nodos == 17:
+        estado_inicio = estado_inicio_17
+        condiciones = condiciones_17
+        mecanismo_cincuenta = mecanismo_cincuenta_17
+        alcance_cincuenta = alcance_cincuenta_17
+        patrones = patrones_17
+    elif cantidad_nodos == 18:
+        estado_inicio = estado_inicio_18
+        condiciones = condiciones_18
+        mecanismo_cincuenta = mecanismo_cincuenta_18
+        alcance_cincuenta = alcance_cincuenta_18
+        patrones = patrones_18
     elif cantidad_nodos == 20:
         estado_inicio = estado_inicio_20
         condiciones = condiciones_20
@@ -180,63 +226,52 @@ def iniciar_estrategia(cantidad_nodos: int, estrategia: int, nombre_archivo):
         alcance_cincuenta = alcance_cincuenta_25
         patrones = patrones_25
     else:
-        print("Cantidad de nodos no soportada, solo se soportan 10, 15, 20 y 25 nodos.")
+        print("Cantidad de nodos no soportada, solo se soportan 5, 10, 15, 17, 18, 20 y 25 nodos.")
         return
 
-    # Ejecutar las primeras 49 pruebas (7 patrones para alcance x 7 para mecanismo)
     prueba_num = 1
     for i in range(7):
         alcance = patrones[i]
         for mecanismo in patrones:
-            resultado = procesar_estrategia(estado_inicio, condiciones, mecanismo, alcance, prueba_num, estrategia)
-            resultados.append(resultado)
-            print(f"{'Prueba':<8}{'Mecanismo':<30}{'Alcance':<30}{'Pérdida':<30}{'Tiempo(seg)':<30}{'Estrategia'}")
-            print("-" * 80)
-            print(f"{resultado['Prueba']:<8}{resultado['Mecanismo']:<30}{resultado['Alcance']:<30}{resultado['Pérdida']:<30}{resultado['Tiempo']:<30}{resultado['Estrategia']}")
-            print(f"Partición Óptima: \n{resultado['Partición óptima']}\n")
+            if incluir_pruebas is not None and prueba_num not in incluir_pruebas:
+                print(f"Prueba {prueba_num} omitida.")
+            else:
+                resultado = procesar_estrategia(estado_inicio, condiciones, mecanismo, alcance, prueba_num, estrategia)
+                resultados.append(resultado)
+                print(f"{'Prueba':<8}{'Mecanismo':<30}{'Alcance':<30}{'Pérdida':<30}{'Tiempo(seg)':<30}{'Estrategia'}")
+                print("-" * 80)
+                print(f"{resultado['Prueba']:<8}{resultado['Mecanismo']:<30}{resultado['Alcance']:<30}{resultado['Pérdida']:<30}{resultado['Tiempo']:<30}{resultado['Estrategia']}")
+                print(f"Partición Óptima: \n{resultado['Partición óptima']}\n")
             prueba_num += 1
 
-
     # Prueba 50 (caso especial)
-    resultado = procesar_estrategia(estado_inicio, condiciones, mecanismo_cincuenta, alcance_cincuenta, prueba_num, estrategia)
-    resultados.append(resultado)
-    print(f"{'Prueba':<8}{'Mecanismo':<30}{'Alcance':<30}{'Pérdida':<30}{'Tiempo(seg)':<30}{'Estrategia'}")
-    print("-" * 80)
-    print(f"{resultado['Prueba']:<8}{resultado['Mecanismo']:<30}{resultado['Alcance']:<30}{resultado['Pérdida']:<30}{resultado['Tiempo']:<30}{resultado['Estrategia']}")
-    print(f"Partición Óptima: \n{resultado['Partición óptima']}\n")
+    if incluir_pruebas is None or prueba_num in incluir_pruebas:
+        resultado = procesar_estrategia(estado_inicio, condiciones, mecanismo_cincuenta, alcance_cincuenta, prueba_num, estrategia)
+        resultados.append(resultado)
+        print(f"{'Prueba':<8}{'Mecanismo':<30}{'Alcance':<30}{'Pérdida':<30}{'Tiempo(seg)':<30}{'Estrategia'}")
+        print("-" * 80)
+        print(f"{resultado['Prueba']:<8}{resultado['Mecanismo']:<30}{resultado['Alcance']:<30}{resultado['Pérdida']:<30}{resultado['Tiempo']:<30}{resultado['Estrategia']}")
+        print(f"Partición Óptima: \n{resultado['Partición óptima']}\n")
+    else:
+        print(f"Prueba {prueba_num} omitida.")
 
-    # Extraer datos para el Excel
+    # Generar Excel
     datos = []
-    num = 1
-    # tipo = ""
-    # resultado_str = ""
-    for obj in resultados:
-        # entrada = obj['Partición óptima']
-        # letra_central = re.search(r"[⎛⎝] ([a-zA-Z]) [⎞⎠]", entrada)
-        # if letra_central:
-        #     letra_central = letra_central.group(1)
-        #     tipo = "mayúscula" if letra_central.isupper() else "minúscula"
-        # letras_mayusculas = "".join(re.findall(r'[A-Z]', entrada))
-        # letras_minusculas = "".join(re.findall(r'[a-z]', entrada))
-        # if tipo == "mayúscula":
-        #     letras_mayusculas = letras_mayusculas[1:]
-        #     resultado_str = f"({letra_central}_t+1|∅)({letras_mayusculas}_t+1|{letras_minusculas}_t)"
-        # if tipo == "minúscula":
-        #     letras_minusculas = letras_minusculas[1:]
-        #     resultado_str = f"(∅|{letra_central}_t)({letras_mayusculas}_t+1|{letras_minusculas}_t)"
+    for idx, obj in enumerate(resultados, start=1):
         datos.append({
-            "Prueba": num,
+            "Prueba": idx,
             "Particion": obj['Partición óptima'],
             "Perdida": obj['Pérdida'],
             "Tiempo": obj['Tiempo'],
             "Estrategia": obj['Estrategia']
         })
-        num += 1
-    
+
     df = pd.DataFrame(datos)
     df.to_excel(nombre_archivo, index=False, engine="openpyxl")
     print("Archivo Excel generado exitosamente.")
     resultados.clear()
+
+
 
 ########## PRUEBAS INDIVIDUALES ##########
 
@@ -292,10 +327,10 @@ def iniciar_qnodes_individual():
 def iniciar_geometric_individual():
     """Ejecución individual de la estrategia Geometric."""
                           #ABCDEFGHIJKLMNO  
-    estado_inicio =       "10000000000000000000"
-    condiciones   =       "11111111111111111111"
-    alcance       =       "01010101010101010101"
-    mecanismo     =       "01010101010101010101"
+    estado_inicio =       "000"
+    condiciones   =       "111"
+    alcance       =       "111"
+    mecanismo     =       "111"
     
 
     config_sistema = Manager(estado_inicial=estado_inicio)
@@ -350,7 +385,7 @@ def iniciar_geometric_individual():
     # mecanismo     =       "1010101010"
     
     # PRUEBA 7 15A
-    estado_inicio =       "100000000000000"
-    condiciones   =       "111111111111111"
-    alcance       =       "111111111111111"
-    mecanismo     =       "110110110110110"
+    # estado_inicio =       "100000000000000"
+    # condiciones   =       "111111111111111"
+    # alcance       =       "111111111111111"
+    # mecanismo     =       "110110110110110"
