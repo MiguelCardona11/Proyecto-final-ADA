@@ -23,40 +23,39 @@ from src.constants.models import (
 class GeometricSIA(SIA):
     def __init__(self, gestor: Manager):
         super().__init__(gestor)
-        self._memoria_costos = {}
         self.distancia_metrica: Callable = seleccionar_metrica(aplicacion.distancia_metrica)
         
     def aplicar_estrategia(self, condiciones: str, alcance: str, mecanismo: str):
+        """
+        Aplica la estrategia Geometric para encontrar la mejor bipartición del subsistema,
+        generando la tabla de costos, mostrándola y seleccionando la partición con menor pérdida EMD.
+
+        Parámetros:
+        - condiciones (str): Cadena binaria indicando las variables presentes en el estado de condiciones.
+        - alcance (str): Cadena binaria indicando las variables presentes en el conjunto de alcance.
+        - mecanismo (str): Cadena binaria indicando las variables presentes en el conjunto de mecanismo.
+
+        Retorna:
+        - Solution: Objeto con la mejor bipartición encontrada y sus métricas asociadas.
+        """
         self.sia_preparar_subsistema(condiciones, alcance, mecanismo)
         tabla = self.calcular_tabla_costos(self.sia_subsistema)
-        # self.mostrar_tabla_costos(tabla, mecanismo)
-        # self.mostrar_tabla_costos_invertida(tabla, mecanismo)
         
         return self.identificar_biparticiones_candidatas(tabla)
     
-    def calcular_costos_ncubo(self, estado_inicial, ncubo, tabla_costos, i):
-        for j in range(1, len(estado_inicial) + 1):
-            hammings = self.generar_estados_hamming(estado_inicial, j)
-            gamma = 2.0 ** (-j)
 
-            for estado in hammings:
-                posicion = self.binario_a_entero(estado)
-                t_ij = abs(ncubo.data[estado_inicial] - ncubo.data[estado])
-                
-                sumatoria = 0.0
-                if j > 1:
-                    vecinos = self.vecinos_optimos_destino(estado_inicial, estado)
-                    for vecino in vecinos:
-                        pos_vecino = self.binario_a_entero(vecino)
-                        sumatoria += tabla_costos[i, pos_vecino]
-                        
-                costo = gamma * (t_ij + sumatoria)
-                tabla_costos[i, posicion] = costo
-    
-    """
-    General tabla de costo de transiciones desde el estado incial de un subsistema, hacia el resto de estados de cada NCubo.
-    """
     def calcular_tabla_costos(self, subsistema: System) -> np.ndarray:
+        """
+        Genera la tabla de costos de transición desde el estado inicial del subsistema hacia
+        todos los estados posibles, para cada NCubo, utilizando una estrategia con programación dinámica y paralelización.
+
+        Parámetros:
+        - subsistema (System): Subsistema con los NCubos sobre los cuales calcular la tabla de costos.
+
+        Retorna:
+        - np.ndarray: Matriz de shape (n_ncubos, 2^n) con los costos de transición desde el estado inicial.
+        """
+
         n_ncubos = len(subsistema.ncubos)
         
         mecanismo_str = self.sia_mecanismo_str
@@ -79,6 +78,35 @@ class GeometricSIA(SIA):
                 
         concurrent.futures.wait(futures)
         return tabla_costos
+    
+    def calcular_costos_ncubo(self, estado_inicial, ncubo, tabla_costos, i):
+        """
+        Calcula la fila de la tabla de costos correspondiente a un único NCubo, rellenando los
+        costos desde el estado inicial hacia otros estados del espacio binario.
+
+        Parámetros:
+        - estado_inicial (Tuple[int, ...]): Estado inicial binario del subsistema reducido al mecanismo.
+        - ncubo (NCube): Cubo sobre el cual calcular los costos de transición.
+        - tabla_costos (np.ndarray): Matriz de costos global a rellenar.
+        - i (int): Índice del NCubo en la tabla de costos.
+        """
+        for j in range(1, len(estado_inicial) + 1):
+            hammings = self.generar_estados_hamming(estado_inicial, j)
+            gamma = 2.0 ** (-j)
+
+            for estado in hammings:
+                posicion = self.binario_a_entero(estado)
+                t_ij = abs(ncubo.data[estado_inicial] - ncubo.data[estado])
+                
+                sumatoria = 0.0
+                if j > 1:
+                    vecinos = self.vecinos_optimos_destino(estado_inicial, estado)
+                    for vecino in vecinos:
+                        pos_vecino = self.binario_a_entero(vecino)
+                        sumatoria += tabla_costos[i, pos_vecino]
+                        
+                costo = gamma * (t_ij + sumatoria)
+                tabla_costos[i, posicion] = costo
     
     def vecinos_optimos_destino(self, origen: Tuple[int, ...], destino: Tuple[int, ...]) -> List[Tuple[int, ...]]:
         """
@@ -103,17 +131,24 @@ class GeometricSIA(SIA):
         return vecinos
 
     def identificar_biparticiones_candidatas(self, tabla: np.ndarray) -> List[Tuple[np.ndarray, np.ndarray]]:
+        """
+        Identifica las biparticiones candidatas evaluando combinaciones ganadoras entre estados
+        complementarios a partir de la tabla de costos. Selecciona la partición con menor pérdida EMD.
 
-        n_estados = tabla.shape[1] # cantidad de columnas, en este caso son los estados del presente
+        Parámetros:
+        - tabla (np.ndarray): Matriz de costos de shape (n_ncubos, 2^n) generada previamente.
+
+        Retorna:
+        - List[Tuple[np.ndarray, np.ndarray]]: Lista de soluciones candidatas ordenadas por costo (solo la mejor es retornada en forma de `Solution`).
+        """
+        n_estados = tabla.shape[1] # cantidad de columnas, en este caso son los estados del presente (2 a la n)
         n_bits = int(np.log2(n_estados))
         
         # en estado_inicial_bin solo se tienen en cuenta los bits en 1 del mecanismo del subsistema
         mascara_mecanismo = np.array([bit == "1" for bit in self.sia_mecanismo_str], dtype=bool)
         estado_filtrado = self.sia_subsistema.estado_inicial[mascara_mecanismo]
         estado_inicial_bin = ''.join(str(b) for b in estado_filtrado)
-        # print(f"Estado inicial real: {estado_inicial_bin}")
         estado_inicial_int = self.binario_str_a_entero(estado_inicial_bin)
-        # print(f"Binario: {estado_inicial_bin} igual a {estado_inicial_int} entero ")
         
         mecanismo_str = self.sia_mecanismo_str
         alcance_str = self.sia_alcance_str
@@ -141,7 +176,7 @@ class GeometricSIA(SIA):
 
             mejor_total = float('inf')
             candidatos = []
-
+            
             for config in combinaciones:
                 candidato = []
                 total = 0.0
@@ -189,18 +224,15 @@ class GeometricSIA(SIA):
                                     arr_mecanismo_prim.append(idx_real)
                 
                 emd_value, dist_marg = self.calcular_emd(arr_alcance_prim, arr_mecanismo_prim)
-                # print(f"Candidato: {candidato} con EMD = {emd_value}")
                 
                 if emd_value == 0.0:
                     encontrado_emd_cero = True
                 
-                # ***CONSTRUCCION DE BIPARTICION
                 if emd_value < mejor_emd:
-                    # print(f"eligió a: {candidato}") 
                     mejor_emd = emd_value
                     mejor_dist_marg = dist_marg
                     
-                    # construir segunda biparticion a partir del complemento de la primera (solo si el emd_value de la particion prim es óptimo)
+                # ***CONSTRUCCION DE BIPARTICION
                     todas_alcance = set(indices_alcance)
                     alcance_asignado = set(arr_alcance_prim)
                     no_asignadas_alcance = todas_alcance - alcance_asignado
@@ -211,9 +243,7 @@ class GeometricSIA(SIA):
 
                     arr_mecanismo_dual.extend(no_asignadas_mecanismo)
                     arr_alcance_dual.extend(no_asignadas_alcance)
-                    
-                    # print(f"Evaluando bipartición: {arr_alcance_prim}, {arr_mecanismo_prim} | {arr_alcance_dual}, {arr_mecanismo_dual} -> EMD: {emd_value:.4f}")
-                
+                                    
                     # formatear biparticiones para construccion de la biparticion solucion
                     subalcance_prim = tuple(arr_alcance_prim)
                     submecanismo_prim = tuple(arr_mecanismo_prim)
@@ -241,6 +271,9 @@ class GeometricSIA(SIA):
         )
 
     def calcular_emd(self, arr_alcance_prim: np.ndarray, arr_mecanismo_prim: np.ndarray):
+        """
+        Calcula la distancia de Earth Mover's Distance (EMD) entre la distribución marginal del subsistema y la partición generada por el alcance y mecanismo primarios recibidos.
+        """
         subsistema = self.sia_subsistema
         distribucion_original = self.sia_dists_marginales
         
@@ -251,6 +284,9 @@ class GeometricSIA(SIA):
         return emd_value, part_marg_dist
 
     def hamming_distance(self, a: Tuple[int, ...], b: Tuple[int, ...]) -> int:
+        """
+        Calcula la distancia de Hamming entre dos tuplas de bits.
+        """
         return sum(x != y for x, y in zip(a, b))
     
     def binario_a_entero(self, bits: Tuple[int, ...]) -> int:
@@ -304,16 +340,11 @@ class GeometricSIA(SIA):
         """
         cantidad_presentes = sum(bit == "1" for bit in mecanismo_str)
         total_estados = 2 ** cantidad_presentes
-        
-        # Generar etiquetas binarios para las columnas
         etiquetas_columnas = [
             format(i, f"0{cantidad_presentes}b") for i in range(total_estados)
         ]
-        
-        # Generar etiquetas para las filas (por ejemplo "NCubo 0", "NCubo 1", etc.)
         etiquetas_filas = [f"NCubo {i}" for i in range(tabla.shape[0])]
         
-        # Crear DataFrame
         df = pd.DataFrame(tabla, index=etiquetas_filas, columns=etiquetas_columnas)
         print(df.to_string())
 
@@ -327,23 +358,11 @@ class GeometricSIA(SIA):
         """
         cantidad_presentes = sum(bit == "1" for bit in mecanismo_str)
         total_estados = 2 ** cantidad_presentes
-
-        # Etiquetas de filas: estados binarios (00000, 00001, ..., 11111)
         etiquetas_filas = [
             format(i, f"0{cantidad_presentes}b") for i in range(total_estados)
         ]
         
-        # Etiquetas de columnas: NCubo 0, NCubo 1, ...
         etiquetas_columnas = [f"NCubo {i}" for i in range(tabla.shape[0])]
-        
-        # Transponer para que los estados sean las filas
         df = pd.DataFrame(tabla.T, index=etiquetas_filas, columns=etiquetas_columnas)
         
         print(df.to_string())
-
-
-
-
-
-
-

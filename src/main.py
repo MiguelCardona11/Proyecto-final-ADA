@@ -141,17 +141,6 @@ def procesar_estrategia(estado_inicio, condiciones, mecanismo, alcance, prueba_n
                     "Estrategia": resultado["estrategia"],
                     "Partición óptima": resultado["particion"]
                 }
-            # else:
-            #     print(f"Error en la prueba {prueba_num}: {resultado}")
-            #     return {
-            #         "Prueba": prueba_num,
-            #         "Mecanismo": "",
-            #         "Alcance": "",
-            #         "Pérdida": "",
-            #         "Tiempo": round(fin - inicio, 6),
-            #         "Estrategia": "",
-            #         "Partición óptima": ""
-            #     }
         else:
             print(f"La prueba {prueba_num} terminó sin devolver resultado.")
             return {
@@ -307,7 +296,6 @@ def iniciar_force_individual():
     print(f"  - Tiempo: {fin - inicio:.6f} s")
     print(f"  - Partición óptima: \n{resultado.particion}")
 
-
 def iniciar_qnodes_individual():
     """Ejecución individual de la estrategia QNodes."""
     estado_inicio =       "000"
@@ -332,60 +320,7 @@ def iniciar_geometric_individual():
     alcance       =       "111"
     mecanismo     =       "111"
     
-
     config_sistema = Manager(estado_inicial=estado_inicio)
     analizador_fi = GeometricSIA(config_sistema)
     resultado = analizador_fi.aplicar_estrategia(condiciones, alcance, mecanismo)
     print(resultado)
-
-    # estado_inicio =       "10100"
-    # condiciones   =       "11111"
-    # alcance       =       "01101"
-    # mecanismo     =       "10110"
-
-    # prueba 15A nro 40:
-    # estado_inicio =       "100000000000000"
-    # condiciones   =       "111111111111111"
-    # alcance       =       "010101010101010"
-    # mecanismo     =       "101010101010101"
-    
-    #prueba 33 20A
-    # estado_inicio =       "10000000000000000000"
-    # condiciones   =       "11111111111111111111"
-    # alcance       =       "10101010101010101010"
-    # mecanismo     =       "10101010101010101010"
-    
-    #prueba 40 20A
-    # estado_inicio =       "10000000000000000000"
-    # condiciones   =       "11111111111111111111"
-    # alcance       =       "01010101010101010101"
-    # mecanismo     =       "10101010101010101010"
-    
-    #prueba 41 20A
-    # estado_inicio =       "10000000000000000000"
-    # condiciones   =       "11111111111111111111"
-    # alcance       =       "01010101010101010101"
-    # mecanismo     =       "01010101010101010101"
-    
-    
-    
-    
-    #prueba 41 10A
-                            #ABCDEFGHIJ
-    # estado_inicio =       "1000000000"
-    # condiciones   =       "1111111111"
-    # alcance       =       "0101010101"
-    # mecanismo     =       "0101010101"
-    
-    # prueba 33 10A PRUEBA:
-                            #ABCDEFGHIJ
-    # estado_inicio =       "1000000000"
-    # condiciones   =       "1111111111"
-    # alcance       =       "1010101010"
-    # mecanismo     =       "1010101010"
-    
-    # PRUEBA 7 15A
-    # estado_inicio =       "100000000000000"
-    # condiciones   =       "111111111111111"
-    # alcance       =       "111111111111111"
-    # mecanismo     =       "110110110110110"
