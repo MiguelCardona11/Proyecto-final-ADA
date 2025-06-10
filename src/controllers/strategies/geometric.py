@@ -326,8 +326,6 @@ class GeometricSIA(SIA):
                 
             estados_generados.append(tuple(nuevo_estado))
         return estados_generados
-    
-    import pandas as pd
 
     def mostrar_tabla_costos(self, tabla: np.ndarray, mecanismo_str: str):
         """
